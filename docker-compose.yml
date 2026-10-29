@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: study-planner-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: study_planner
+      POSTGRES_USER: study_planner
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-study_planner}
+    ports:
+      - "5433:5432"
+    volumes:
+      - study-planner-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U study_planner -d study_planner"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  study-planner-db:

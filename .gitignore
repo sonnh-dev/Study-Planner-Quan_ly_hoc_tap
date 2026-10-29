@@ -1,0 +1,17 @@
+.env
+backend/target/
+
+# Flutter generated files
+frontend/.dart_tool/
+frontend/.flutter-plugins
+frontend/.flutter-plugins-dependencies
+frontend/build/
+frontend/coverage/
+frontend/.idea/
+frontend/*.iml
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
