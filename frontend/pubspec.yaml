@@ -1,0 +1,29 @@
+name: studyplaner
+description: "Study Planner client for managing study sessions and plans"
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.13.4
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+  drift: ^2.35.3
+  drift_flutter: ^0.3.1
+  flutter_local_notifications: ^22.3.3
+  flutter_secure_storage: ^11.2.0
+  flutter_timezone: ^5.1.0
+  http: ^1.5.0
+  timezone: ^0.11.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  build_runner: ^2.8.0
+  drift_dev: ^2.35.2
+
+flutter:
+  uses-material-design: true

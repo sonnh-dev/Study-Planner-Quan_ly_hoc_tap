@@ -1,0 +1,9 @@
+{
+  "name": "Study Planner",
+  "short_name": "Study Planner",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#f6f7fb",
+  "theme_color": "#5274e8",
+  "description": "Study Planner application"
+}
