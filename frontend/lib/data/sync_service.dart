@@ -125,7 +125,11 @@ class SyncService {
                       .toUtc()
                       .toIso8601String(),
           });
-          await db.saveRoadmapNode(row.copyWith(isSynced: true));
+          await db.transaction(() async {
+            if (await db.getRoadmapNode(row.id) == row) {
+              await db.saveRoadmapNode(row.copyWith(isSynced: true));
+            }
+          });
           pending.remove(row);
         }
       }
@@ -137,22 +141,25 @@ class SyncService {
       for (final item in _resultList(
         await api.get('/subjects/${subject.id}/roadmap'),
       )) {
-        await db.saveRoadmapNode(
-          RoadmapNode(
-            id: item['id'] as String,
-            subjectId: item['subjectId'] as String,
-            parentId: item['parentId'] as String?,
-            title: item['title'] as String,
-            note: item['note'] as String? ?? '',
-            status: item['status'] as String? ?? 'planned',
-            sortOrder: item['sortOrder'] as int? ?? 0,
-            dueAt: item['dueAt'] == null
-                ? null
-                : DateTime.parse(item['dueAt'] as String)
-                      .millisecondsSinceEpoch,
-            isSynced: true,
-          ),
+        final row = RoadmapNode(
+          id: item['id'] as String,
+          subjectId: item['subjectId'] as String,
+          parentId: item['parentId'] as String?,
+          title: item['title'] as String,
+          note: item['note'] as String? ?? '',
+          status: item['status'] as String? ?? 'planned',
+          sortOrder: item['sortOrder'] as int? ?? 0,
+          dueAt: item['dueAt'] == null
+              ? null
+              : DateTime.parse(item['dueAt'] as String).millisecondsSinceEpoch,
+          isSynced: true,
         );
+        await db.transaction(() async {
+          final local = await db.getRoadmapNode(row.id);
+          if (local == null || local.isSynced) {
+            await db.saveRoadmapNode(row);
+          }
+        });
       }
     }
   }

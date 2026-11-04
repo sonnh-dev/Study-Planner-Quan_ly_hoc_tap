@@ -53,15 +53,16 @@ class MindmapNodes extends Table {
 
 @DriftDatabase(tables: [Subjects, StudyEvents, RoadmapNodes, MindmapNodes])
 class AppDatabase extends _$AppDatabase {
-  AppDatabase()
+  AppDatabase([QueryExecutor? executor])
     : super(
-        driftDatabase(
-          name: 'study_planner',
-          web: DriftWebOptions(
-            sqlite3Wasm: Uri.parse('sqlite3.wasm'),
-            driftWorker: Uri.parse('drift_worker.js'),
-          ),
-        ),
+        executor ??
+            driftDatabase(
+              name: 'study_planner',
+              web: DriftWebOptions(
+                sqlite3Wasm: Uri.parse('sqlite3.wasm'),
+                driftWorker: Uri.parse('drift_worker.js'),
+              ),
+            ),
       );
   @override
   int get schemaVersion => 1;
@@ -105,6 +106,9 @@ class AppDatabase extends _$AppDatabase {
   Future<List<RoadmapNode>> getRoadmap(String subjectId) => (select(
     roadmapNodes,
   )..where((row) => row.subjectId.equals(subjectId))).get();
+  Future<RoadmapNode?> getRoadmapNode(String id) => (select(
+    roadmapNodes,
+  )..where((row) => row.id.equals(id))).getSingleOrNull();
   Future<void> saveRoadmapNode(RoadmapNode row) =>
       into(roadmapNodes).insertOnConflictUpdate(
         RoadmapNodesCompanion.insert(
@@ -119,6 +123,22 @@ class AppDatabase extends _$AppDatabase {
           isSynced: Value(row.isSynced),
         ),
       );
+
+  Future<void> updateRoadmapProgress(
+    String id, {
+    required String note,
+    required String status,
+  }) async {
+    final count =
+        await (update(roadmapNodes)..where((row) => row.id.equals(id))).write(
+          RoadmapNodesCompanion(
+            note: Value(note),
+            status: Value(status),
+            isSynced: const Value(false),
+          ),
+        );
+    if (count == 0) throw StateError('Roadmap node no longer exists.');
+  }
 
   Stream<List<MindmapNode>> watchMindmap(String subjectId) => (select(
     mindmapNodes,

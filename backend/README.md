@@ -13,15 +13,15 @@ Spring Boot REST API for the Flutter app.
 From the repository root, create your local configuration if it does not already exist:
 
 ```powershell
-Copy-Item backend/.env.example backend/.env
+Copy-Item backend/.env.example .env
 ```
 
-On Linux/macOS, use `cp backend/.env.example backend/.env`. Keep any existing `.env` and update its settings as needed.
+On Linux/macOS, use `cp backend/.env.example .env`. Keep any existing `.env` and update its settings as needed.
 
 Start PostgreSQL from the repository root:
 
 ```powershell
-docker compose --env-file backend/.env up -d postgres
+docker compose --env-file .env up -d postgres
 ```
 
 Docker exposes PostgreSQL on host port `5433`, so it can coexist with a native PostgreSQL installation on port `5432`. The example connects to `jdbc:postgresql://localhost:5433/study_planner` with database, username, and local password `study_planner`. To use an existing PostgreSQL server instead, create the database and role there and adjust the connection settings in `.env`.
@@ -29,16 +29,17 @@ Docker exposes PostgreSQL on host port `5433`, so it can coexist with a native P
 Then change to `backend/` and run on Windows:
 
 ```powershell
+$env:SPRING_CONFIG_IMPORT = 'file:../.env[.properties]'
 .\mvnw.cmd spring-boot:run
 ```
 
 On Linux/macOS:
 
 ```sh
-./mvnw spring-boot:run
+SPRING_CONFIG_IMPORT='file:../.env[.properties]' ./mvnw spring-boot:run
 ```
 
-The backend loads `.env` automatically when the working directory is either the repository root or `backend/`, including runs from an IDE with one of those working directories. Process environment variables override values in `.env`.
+Spring Boot imports the root `.env` through `SPRING_CONFIG_IMPORT`. In an IDE, set the same variable relative to the selected working directory, or provide configuration as process environment variables. Process environment variables override values in `.env`.
 
 Flyway applies the schema migration at startup. Check health at http://localhost:8080/actuator/health.
 

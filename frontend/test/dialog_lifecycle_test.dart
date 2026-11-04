@@ -41,7 +41,21 @@ class _DialogDatabase implements AppDatabase {
   Future<void> saveSubject(Subject row) async => subjectRows.add(row);
 
   @override
-  Future<void> saveRoadmapNode(RoadmapNode row) async => roadmapRows.add(row);
+  Future<void> saveRoadmapNode(RoadmapNode row) async {
+    roadmapRows.removeWhere((existing) => existing.id == row.id);
+    roadmapRows.add(row);
+  }
+
+  @override
+  Future<void> updateRoadmapProgress(
+    String id, {
+    required String note,
+    required String status,
+  }) => saveRoadmapNode(
+    roadmapRows
+        .singleWhere((row) => row.id == id)
+        .copyWith(note: note, status: status, isSynced: false),
+  );
 
   @override
   Future<void> saveEvent(StudyEvent row) async => eventRows.add(row);
@@ -68,8 +82,12 @@ class _DialogNotifications implements NotificationService {
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
-Future<void> _openScreen(WidgetTester tester, Widget screen) async {
-  tester.view.physicalSize = const Size(1400, 900);
+Future<void> _openScreen(
+  WidgetTester tester,
+  Widget screen, {
+  Size size = const Size(1400, 900),
+}) async {
+  tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.resetPhysicalSize);
   addTearDown(tester.view.resetDevicePixelRatio);
@@ -130,6 +148,8 @@ void main() {
             ),
           );
         await _openScreen(tester, RoadmapScreen(database: database));
+        await tester.tap(find.text(_subject.name));
+        await tester.pumpAndSettle();
         await tester.tap(find.text('Thêm nhánh'));
         await tester.pumpAndSettle();
         await tester.enterText(find.byType(TextField).at(0), '  Giới hạn  ');
@@ -251,4 +271,91 @@ void main() {
       variant: TargetPlatformVariant.only(TargetPlatform.android),
     );
   }
+
+  testWidgets('Mở đúng môn, thu gọn cây và sửa ghi chú, trạng thái nhánh', (
+    tester,
+  ) async {
+    const other = Subject(
+      id: 'subject-2',
+      name: 'Lập trình',
+      color: '#5685F7',
+      isSynced: true,
+    );
+    const parent = RoadmapNode(
+      id: 'parent',
+      subjectId: 'subject-1',
+      parentId: null,
+      title: 'Chương 1',
+      note: '',
+      status: 'planned',
+      sortOrder: 0,
+      dueAt: null,
+      isSynced: true,
+    );
+    const child = RoadmapNode(
+      id: 'child',
+      subjectId: 'subject-1',
+      parentId: 'parent',
+      title: 'Giới hạn',
+      note: 'Ghi chú cũ',
+      status: 'planned',
+      sortOrder: 1,
+      dueAt: 1789992000000,
+      isSynced: true,
+    );
+    final database = _DialogDatabase()
+      ..subjectRows.addAll([_subject, other])
+      ..roadmapRows.addAll([parent, child]);
+
+    await _openScreen(
+      tester,
+      RoadmapScreen(database: database),
+      size: const Size(360, 740),
+    );
+    await tester.tap(find.text(other.name));
+    await tester.pumpAndSettle();
+    expect(find.text('0/0 nhánh hoàn thành'), findsOneWidget);
+    expect(find.text(child.title), findsNothing);
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text(_subject.name));
+    await tester.pumpAndSettle();
+    expect(find.text('0/2 nhánh hoàn thành'), findsOneWidget);
+    await tester.tap(find.byTooltip('Thu gọn nhánh'));
+    await tester.pumpAndSettle();
+    expect(find.text(child.title), findsNothing);
+    await tester.tap(find.byTooltip('Mở rộng nhánh'));
+    await tester.pumpAndSettle();
+    expect(find.text(child.title), findsOneWidget);
+
+    await tester.tap(find.text(child.title));
+    await tester.pumpAndSettle();
+    expect(find.text(child.note), findsOneWidget);
+    await tester.enterText(find.byType(TextFormField), 'Bỏ thay đổi');
+    await tester.tap(find.text('Hủy'));
+    await tester.pumpAndSettle();
+    expect(database.roadmapRows.last, child);
+
+    await tester.tap(find.text(child.title));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextFormField), '  Làm lại bài 3  ');
+    await tester.tap(find.byType(DropdownButtonFormField<String>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Hoàn thành').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Lưu'));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    expect(
+      database.roadmapRows.last,
+      child.copyWith(note: 'Làm lại bài 3', status: 'done', isSynced: false),
+    );
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(_subject.name));
+    await tester.pumpAndSettle();
+    expect(find.text('1/2 nhánh hoàn thành'), findsOneWidget);
+    expect(find.text('Hoàn thành\nLàm lại bài 3'), findsOneWidget);
+  });
 }

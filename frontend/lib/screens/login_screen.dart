@@ -53,24 +53,32 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget build(BuildContext context) {
     final width = MediaQuery.sizeOf(context).width;
     return Scaffold(
-      body: Center(
-        child: ConstrainedBox(
-          constraints: BoxConstraints(maxWidth: width > 900 ? 920 : 430),
-          child: Card(
-            clipBehavior: Clip.antiAlias,
-            child: width > 900
-                ? Row(
-                    children: [
-                      Expanded(child: _brandPanel()),
-                      Expanded(
-                        child: Padding(
-                          padding: const EdgeInsets.all(36),
-                          child: _form(),
-                        ),
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(maxWidth: width > 900 ? 920 : 430),
+              child: Card(
+                clipBehavior: Clip.antiAlias,
+                child: width > 900
+                    ? Row(
+                        children: [
+                          Expanded(child: _brandPanel()),
+                          Expanded(
+                            child: Padding(
+                              padding: const EdgeInsets.all(36),
+                              child: _form(),
+                            ),
+                          ),
+                        ],
+                      )
+                    : Padding(
+                        padding: const EdgeInsets.all(30),
+                        child: _form(),
                       ),
-                    ],
-                  )
-                : Padding(padding: const EdgeInsets.all(30), child: _form()),
+              ),
+            ),
           ),
         ),
       ),
@@ -176,10 +184,12 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
       ),
       TextButton(
-        onPressed: () => setState(() {
-          _register = !_register;
-          _error = null;
-        }),
+        onPressed: _busy
+            ? null
+            : () => setState(() {
+                _register = !_register;
+                _error = null;
+              }),
         child: Text(
           _register
               ? 'Đã có tài khoản? Đăng nhập'
@@ -187,7 +197,7 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
       ),
       OutlinedButton.icon(
-        onPressed: widget.onContinueOffline,
+        onPressed: _busy ? null : widget.onContinueOffline,
         icon: const Icon(Icons.wifi_off),
         label: const Text('Tiếp tục ở chế độ offline'),
       ),
