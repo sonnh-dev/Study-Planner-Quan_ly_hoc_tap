@@ -47,11 +47,12 @@ class _StudyPlannerAppState extends State<StudyPlannerApp> {
   Future<void> _signedIn(String token, String email) async {
     await widget.session.save(token, email);
     widget.api.token = token;
-    if (mounted)
+    if (mounted) {
       setState(() {
         _token = token;
         _email = email;
       });
+    }
   }
 
   Future<void> _continueOffline() async {
@@ -65,11 +66,12 @@ class _StudyPlannerAppState extends State<StudyPlannerApp> {
   Future<void> _signOut() async {
     await widget.session.clear();
     widget.api.token = null;
-    if (mounted)
+    if (mounted) {
       setState(() {
         _token = null;
         _email = null;
       });
+    }
   }
 
   @override

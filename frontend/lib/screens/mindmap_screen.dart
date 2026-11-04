@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:studyplaner/data/app_database.dart';
 import 'package:studyplaner/util/id.dart';
 
@@ -20,6 +21,192 @@ class _MindmapScreenState extends State<MindmapScreen> {
   bool _isDesktop(BuildContext context) =>
       defaultTargetPlatform == TargetPlatform.windows ||
       (kIsWeb && MediaQuery.sizeOf(context).width >= 760);
+
+  static const _webEditorUrl = String.fromEnvironment(
+    'WEB_EDITOR_URL',
+    defaultValue: 'http://localhost:5000',
+  );
+
+  Future<void> _showWebEditorInstructions() => showDialog<void>(
+    context: context,
+    builder: (dialogContext) => AlertDialog(
+      title: const Text('Chỉnh sửa trên máy tính'),
+      content: const SizedBox(
+        width: 420,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Mở địa chỉ sau bằng trình duyệt trên máy tính:'),
+              SizedBox(height: 12),
+              SelectableText(_webEditorUrl),
+              SizedBox(height: 16),
+              Text(
+                '1. Đăng nhập và bấm Đồng bộ trên điện thoại.\n\n'
+                '2. Trên máy tính, mở Web editor, đăng nhập cùng tài khoản '
+                'và bấm Đồng bộ trước khi chỉnh sửa.\n\n'
+                '3. Mở mục Mindmap, chọn môn và chỉnh sửa. '
+                'Bấm Đồng bộ sau khi hoàn tất.\n\n'
+                '4. Trở lại điện thoại, bấm Đồng bộ để xem dữ liệu mới.',
+              ),
+              SizedBox(height: 16),
+              Text(
+                'Web editor cần đang chạy. Với địa chỉ localhost, '
+                'hãy mở trên máy tính đang chạy Web editor. '
+                'Chế độ offline không đồng bộ giữa các thiết bị.',
+              ),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(dialogContext),
+          child: const Text('Đóng'),
+        ),
+        FilledButton.icon(
+          onPressed: () async {
+            try {
+              await Clipboard.setData(const ClipboardData(text: _webEditorUrl));
+              if (!dialogContext.mounted) return;
+              Navigator.pop(dialogContext);
+              if (!mounted) return;
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Đã sao chép địa chỉ Web editor')),
+              );
+            } catch (_) {
+              if (!dialogContext.mounted) return;
+              ScaffoldMessenger.of(dialogContext).showSnackBar(
+                const SnackBar(
+                  content: Text(
+                    'Chưa sao chép được. Hãy chọn địa chỉ để sao chép.',
+                  ),
+                ),
+              );
+            }
+          },
+          icon: const Icon(Icons.copy_outlined),
+          label: const Text('Sao chép địa chỉ'),
+        ),
+      ],
+    ),
+  );
+
+  Widget _buildMobileMindmap() => StreamBuilder<List<Subject>>(
+    stream: widget.database.watchSubjects(),
+    builder: (context, subjectSnapshot) {
+      final subjects = subjectSnapshot.data ?? [];
+      final subjectId = subjects.any((row) => row.id == _subjectId)
+          ? _subjectId
+          : subjects.firstOrNull?.id;
+      return ListView(
+        padding: const EdgeInsets.all(24),
+        children: [
+          const Icon(Icons.desktop_windows_outlined, size: 48),
+          const SizedBox(height: 16),
+          Text(
+            'Chỉnh sửa Mindmap trên máy tính',
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Xem nội dung trên điện thoại. Mở Web editor trên máy tính '
+            'để tạo và sắp xếp các nhánh.',
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 16),
+          FilledButton.icon(
+            onPressed: _showWebEditorInstructions,
+            icon: const Icon(Icons.open_in_browser),
+            label: const Text('Chỉnh sửa trên máy tính'),
+          ),
+          const SizedBox(height: 24),
+          if (subjectSnapshot.hasError)
+            const Text('Không tải được môn học. Hãy mở lại mục Mindmap.')
+          else if (subjectSnapshot.connectionState == ConnectionState.waiting)
+            const Center(child: CircularProgressIndicator())
+          else if (subjectId == null)
+            const Text(
+              'Chưa có môn học. Đăng nhập cùng tài khoản và bấm Đồng bộ '
+              'để tải dữ liệu từ máy tính.',
+            )
+          else ...[
+            DropdownButtonFormField<String>(
+              key: ValueKey(subjectId),
+              initialValue: subjectId,
+              isExpanded: true,
+              decoration: const InputDecoration(labelText: 'Môn học'),
+              items: subjects
+                  .map(
+                    (row) =>
+                        DropdownMenuItem(value: row.id, child: Text(row.name)),
+                  )
+                  .toList(),
+              onChanged: (value) => setState(() => _subjectId = value),
+            ),
+            const SizedBox(height: 16),
+            StreamBuilder<List<MindmapNode>>(
+              key: ValueKey('mobile-mindmap-$subjectId'),
+              stream: widget.database.watchMindmap(subjectId),
+              builder: (context, nodeSnapshot) {
+                if (nodeSnapshot.hasError) {
+                  return const Text('Không tải được Mindmap. Hãy thử lại.');
+                }
+                if (nodeSnapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                final nodes = nodeSnapshot.data ?? [];
+                if (nodes.isEmpty) {
+                  return const Text(
+                    'Môn này chưa có Mindmap. '
+                    'Tạo trên Web editor rồi đồng bộ ở cả máy tính và điện thoại.',
+                  );
+                }
+                final byId = {for (final node in nodes) node.id: node};
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text('${nodes.length} node · Chỉ xem'),
+                    const SizedBox(height: 8),
+                    for (final node in nodes)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Card(
+                          child: Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  node.title,
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .titleMedium,
+                                ),
+                                if (byId[node.parentId] case final parent?) ...[
+                                  const SizedBox(height: 4),
+                                  Text('Thuộc nhánh: ${parent.title}'),
+                                ],
+                                if (node.content.isNotEmpty) ...[
+                                  const SizedBox(height: 8),
+                                  Text(node.content),
+                                ],
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                );
+              },
+            ),
+          ],
+        ],
+      );
+    },
+  );
 
   MindmapNode? _findNode(List<MindmapNode> nodes, String? id) {
     if (id == null) return null;
@@ -147,28 +334,7 @@ class _MindmapScreenState extends State<MindmapScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (!_isDesktop(context)) {
-      return const Center(
-        child: Padding(
-          padding: EdgeInsets.all(32),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.desktop_windows_outlined, size: 56),
-              SizedBox(height: 16),
-              Text(
-                'Mindmap editor dành cho máy tính',
-                style: TextStyle(fontSize: 19, fontWeight: FontWeight.bold),
-              ),
-              SizedBox(height: 8),
-              Text(
-                'Mở ứng dụng trên Windows hoặc màn hình Web rộng để tạo và sắp xếp mindmap.',
-              ),
-            ],
-          ),
-        ),
-      );
-    }
+    if (!_isDesktop(context)) return _buildMobileMindmap();
     return StreamBuilder<List<Subject>>(
       stream: widget.database.watchSubjects(),
       builder: (context, subjectSnapshot) {

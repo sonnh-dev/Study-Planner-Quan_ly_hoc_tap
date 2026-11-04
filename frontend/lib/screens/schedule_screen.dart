@@ -227,12 +227,14 @@ class _EventDialogState extends State<_EventDialog> {
               value: _starts,
               onTap: () async {
                 final picked = await _pick(_starts);
-                if (picked != null)
+                if (picked != null) {
                   setState(() {
                     _starts = picked;
-                    if (!_ends.isAfter(picked))
+                    if (!_ends.isAfter(picked)) {
                       _ends = picked.add(const Duration(hours: 1));
+                    }
                   });
+                }
               },
             ),
             _DateButton(
