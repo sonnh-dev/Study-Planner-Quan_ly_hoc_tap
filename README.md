@@ -19,31 +19,35 @@
 2. Từ thư mục gốc, tạo cấu hình local nếu chưa có `.env`:
 
     ```powershell
-    Copy-Item backend/.env.example backend/.env
+    Copy-Item backend/.env.example .env
     ```
 
-    Trên Linux/macOS dùng `cp backend/.env.example backend/.env`. Giữ lại `.env` hiện có nếu đã cấu hình, và chỉnh thông tin kết nối khi cần.
+    Trên Linux/macOS dùng `cp backend/.env.example .env`. Giữ lại `.env` hiện có nếu đã cấu hình, và chỉnh thông tin kết nối khi cần.
 3. Từ thư mục gốc, khởi động PostgreSQL:
 
     ```powershell
-    docker compose --env-file backend/.env up -d postgres
+    docker compose --env-file .env up -d postgres
     ```
 
-    PostgreSQL trong Docker dùng cổng host `5433`, tránh xung đột với PostgreSQL cài trực tiếp trên Windows thường dùng `5432`. Cấu hình mẫu dùng `jdbc:postgresql://localhost:5433/study_planner`, database/user/password local là `study_planner`. Nếu dùng PostgreSQL đã cài sẵn, tạo database/user tương ứng và sửa `DB_URL`, `DB_USERNAME`, `DB_PASSWORD` trong `backend/.env` theo server đó.
+    PostgreSQL trong Docker dùng cổng host `5433`, tránh xung đột với PostgreSQL cài trực tiếp trên Windows thường dùng `5432`. Cấu hình mẫu dùng `jdbc:postgresql://localhost:5433/study_planner`, database/user/password local là `study_planner`. Nếu dùng PostgreSQL đã cài sẵn, tạo database/user tương ứng và sửa `DB_URL`, `DB_USERNAME`, `DB_PASSWORD` trong `.env` theo server đó.
 4. Trong `backend/`, chạy:
 
     ```powershell
+    $env:SPRING_CONFIG_IMPORT = 'file:../.env[.properties]'
     .\mvnw.cmd spring-boot:run
     ```
 
-    Trên Linux/macOS dùng `./mvnw spring-boot:run`.
+    Trên Linux/macOS dùng `SPRING_CONFIG_IMPORT='file:../.env[.properties]' ./mvnw spring-boot:run`.
 5. Kiểm tra API health: http://localhost:8080/actuator/health.
 
-Backend tự đọc `backend/.env` khi thư mục chạy là gốc project hoặc `backend/`; biến môi trường của tiến trình được ưu tiên hơn file `.env`. `JWT_SECRET` trong file mẫu chỉ dành cho phát triển; khi triển khai, đặt secret riêng dài ít nhất 32 byte UTF-8. Flyway tự tạo schema khi backend khởi động.
+Spring Boot đọc `.env` qua `SPRING_CONFIG_IMPORT`. Bạn cũng có thể cung cấp cấu hình qua biến môi trường của tiến trình, vốn được ưu tiên hơn file. `JWT_SECRET` trong file mẫu chỉ dành cho phát triển. Khi triển khai, đặt secret riêng dài ít nhất 32 byte UTF-8. Flyway tự tạo schema khi backend khởi động.
 
 Lưu ý: đổi `DB_PASSWORD` trong `.env` không đổi mật khẩu PostgreSQL của volume Docker đã có. Khi dùng lại volume cũ, dùng mật khẩu hiện tại hoặc đổi mật khẩu role trong database rồi cập nhật `.env`.
 
 ## Chạy Flutter
+
+Chọn Flutter SDK đi kèm Dart 3.13.4 trở lên (nhánh Dart 3.x) theo `frontend/pubspec.yaml`.
+Trên Windows, nếu `flutter pub get` báo lỗi quyền tạo symlink cho plugin, bật Developer Mode rồi chạy lại.
 
 Trong frontend/:
 
@@ -73,3 +77,5 @@ Drift cần sinh file app_database.g.dart bằng lệnh build_runner ở trên. 
 - GET /api/v1/events, PUT /api/v1/events/{id}
 - GET /api/v1/subjects/{subjectId}/roadmap, PUT /api/v1/roadmap/{id}
 - GET /api/v1/subjects/{subjectId}/mindmap, PUT /api/v1/mindmap/{id}
+
+Xem [thiết kế dữ liệu, đặc tả API và mapping giao diện Môn học & Lộ trình](docs/mon-hoc-va-lo-trinh.md).

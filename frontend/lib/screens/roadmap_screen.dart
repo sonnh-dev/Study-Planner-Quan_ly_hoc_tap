@@ -2,26 +2,53 @@ import 'package:flutter/material.dart';
 import 'package:studyplaner/data/app_database.dart';
 import 'package:studyplaner/util/id.dart';
 
+const _statuses = {
+  'planned': 'Chưa bắt đầu',
+  'in_progress': 'Đang học',
+  'done': 'Hoàn thành',
+};
+
 class RoadmapScreen extends StatefulWidget {
   const RoadmapScreen({super.key, required this.database});
+
   final AppDatabase database;
+
   @override
   State<RoadmapScreen> createState() => _RoadmapScreenState();
 }
 
 class _RoadmapScreenState extends State<RoadmapScreen> {
-  String? _subjectId;
+  late final _subjects = widget.database.watchSubjects();
+
+  void _openSubject(Subject subject) {
+    Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (_) =>
+            _SubjectRoadmap(database: widget.database, subject: subject),
+      ),
+    );
+  }
 
   Future<void> _addSubject() async {
+    final formKey = GlobalKey<FormState>();
     var subjectName = '';
     final name = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Thêm môn học'),
-        content: TextField(
-          onChanged: (value) => subjectName = value,
-          autofocus: true,
-          decoration: const InputDecoration(labelText: 'Tên môn học'),
+        scrollable: true,
+        content: Form(
+          key: formKey,
+          child: TextFormField(
+            onChanged: (value) => subjectName = value.trim(),
+            autofocus: true,
+            decoration: const InputDecoration(labelText: 'Tên môn học'),
+            validator: (value) {
+              if (subjectName.isEmpty) return 'Nhập tên môn học.';
+              if (subjectName.length > 120) return 'Tối đa 120 ký tự.';
+              return null;
+            },
+          ),
         ),
         actions: [
           TextButton(
@@ -29,283 +56,350 @@ class _RoadmapScreenState extends State<RoadmapScreen> {
             child: const Text('Hủy'),
           ),
           FilledButton(
-            onPressed: () => Navigator.pop(context, subjectName.trim()),
+            onPressed: () {
+              if (formKey.currentState!.validate()) {
+                Navigator.pop(context, subjectName);
+              }
+            },
             child: const Text('Lưu'),
           ),
         ],
       ),
     );
-    if (name == null || name.isEmpty) return;
-    final id = newId();
-    await widget.database.saveSubject(
-      Subject(id: id, name: name, color: '#5685F7', isSynced: false),
+    if (name == null || !mounted) return;
+    final subject = Subject(
+      id: newId(),
+      name: name,
+      color: '#5685F7',
+      isSynced: false,
     );
-    if (mounted) setState(() => _subjectId = id);
+    try {
+      await widget.database.saveSubject(subject);
+      if (mounted) _openSubject(subject);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Không thể lưu môn học. Hãy thử lại.')),
+        );
+      }
+    }
   }
-
-  Future<void> _addNode(List<RoadmapNode> existing, String subjectId) async {
-    var title = '';
-    var note = '';
-    String? parentId;
-    final result = await showDialog<RoadmapNode>(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          title: const Text('Thêm nhánh lộ trình'),
-          content: SizedBox(
-            width: 420,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  onChanged: (value) => title = value,
-                  autofocus: true,
-                  decoration: const InputDecoration(labelText: 'Tên chủ đề'),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  onChanged: (value) => note = value,
-                  maxLines: 3,
-                  decoration: const InputDecoration(
-                    labelText: 'Ghi chú',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                DropdownButtonFormField<String?>(
-                  initialValue: parentId,
-                  decoration: const InputDecoration(
-                    labelText: 'Nhánh cha',
-                    border: OutlineInputBorder(),
-                  ),
-                  items: [
-                    const DropdownMenuItem<String?>(
-                      value: null,
-                      child: Text('Chủ đề gốc'),
-                    ),
-                    ...existing.map(
-                      (node) => DropdownMenuItem<String?>(
-                        value: node.id,
-                        child: Text(
-                          node.title,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ),
-                  ],
-                  onChanged: (value) => setDialogState(() => parentId = value),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Hủy'),
-            ),
-            FilledButton(
-              onPressed: () {
-                if (title.trim().isEmpty) return;
-                Navigator.pop(
-                  context,
-                  RoadmapNode(
-                    id: newId(),
-                    subjectId: subjectId,
-                    parentId: parentId,
-                    title: title.trim(),
-                    note: note.trim(),
-                    status: 'planned',
-                    sortOrder: existing.length,
-                    dueAt: null,
-                    isSynced: false,
-                  ),
-                );
-              },
-              child: const Text('Thêm'),
-            ),
-          ],
-        ),
-      ),
-    );
-    if (result != null) await widget.database.saveRoadmapNode(result);
-  }
-
-  Future<void> _changeStatus(RoadmapNode node, String status) => widget.database
-      .saveRoadmapNode(node.copyWith(status: status, isSynced: false));
 
   @override
   Widget build(BuildContext context) => StreamBuilder<List<Subject>>(
-    stream: widget.database.watchSubjects(),
-    builder: (context, subjectSnapshot) {
-      final subjects = subjectSnapshot.data ?? [];
-      if (subjects.isEmpty) return _emptySubjects(context);
-      _subjectId ??= subjects.first.id;
-      if (!subjects.any((subject) => subject.id == _subjectId)) {
-        _subjectId = subjects.first.id;
+    stream: _subjects,
+    builder: (context, snapshot) {
+      if (snapshot.hasError) {
+        return const Center(child: Text('Không thể đọc danh sách môn học.'));
       }
-      final selected = _subjectId!;
-      return StreamBuilder<List<RoadmapNode>>(
-        stream: widget.database.watchRoadmap(selected),
-        builder: (context, nodeSnapshot) {
-          final nodes = nodeSnapshot.data ?? [];
-          return ListView(
-            padding: const EdgeInsets.all(24),
-            children: [
-              Wrap(
-                alignment: WrapAlignment.spaceBetween,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                spacing: 12,
-                runSpacing: 12,
-                children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Lộ trình môn học',
-                        style: Theme.of(context).textTheme.headlineSmall
-                            ?.copyWith(fontWeight: FontWeight.bold),
-                      ),
-                      const SizedBox(height: 4),
-                      const Text(
-                        'Chia mục tiêu lớn thành những nhánh nhỏ có thể theo dõi.',
-                      ),
-                    ],
-                  ),
-                  Wrap(
-                    spacing: 10,
-                    children: [
-                      DropdownButton<String>(
-                        value: selected,
-                        items: subjects
-                            .map(
-                              (subject) => DropdownMenuItem(
-                                value: subject.id,
-                                child: Text(subject.name),
-                              ),
-                            )
-                            .toList(),
-                        onChanged: (value) =>
-                            setState(() => _subjectId = value),
-                      ),
-                      OutlinedButton.icon(
-                        onPressed: _addSubject,
-                        icon: const Icon(Icons.library_add_outlined),
-                        label: const Text('Môn học'),
-                      ),
-                      FilledButton.icon(
-                        onPressed: () => _addNode(nodes, selected),
-                        icon: const Icon(Icons.add),
-                        label: const Text('Thêm nhánh'),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-              const SizedBox(height: 22),
-              if (nodes.isEmpty)
-                const Card(
-                  child: Padding(
-                    padding: EdgeInsets.all(28),
-                    child: Text(
-                      'Chưa có nhánh nào. Hãy thêm chủ đề đầu tiên vào lộ trình.',
-                    ),
-                  ),
-                )
-              else
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    child: Column(
-                      children: nodes
-                          .where((node) => node.parentId == null)
-                          .map((node) => _buildBranch(node, nodes, 0))
-                          .toList(),
-                    ),
-                  ),
+      if (!snapshot.hasData) {
+        return const Center(child: CircularProgressIndicator());
+      }
+      final subjects = snapshot.data!;
+      return ListView(
+        padding: const EdgeInsets.all(20),
+        children: [
+          Text('Môn học', style: Theme.of(context).textTheme.headlineSmall),
+          const SizedBox(height: 6),
+          const Text('Chọn một môn để mở lộ trình và theo dõi tiến độ.'),
+          const SizedBox(height: 16),
+          Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: FilledButton.icon(
+              onPressed: _addSubject,
+              icon: const Icon(Icons.add),
+              label: Text(subjects.isEmpty ? 'Tạo môn học' : 'Thêm môn học'),
+            ),
+          ),
+          const SizedBox(height: 16),
+          if (subjects.isEmpty) const Text('Bạn chưa có môn học nào.'),
+          for (final subject in subjects)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Card(
+                child: ListTile(
+                  leading: const Icon(Icons.menu_book_outlined),
+                  title: Text(subject.name),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => _openSubject(subject),
                 ),
-            ],
-          );
-        },
+              ),
+            ),
+        ],
       );
     },
   );
+}
 
-  Widget _emptySubjects(BuildContext context) => Center(
-    child: FilledButton.icon(
-      onPressed: _addSubject,
-      icon: const Icon(Icons.add),
-      label: const Text('Tạo môn học'),
-    ),
-  );
+class _SubjectRoadmap extends StatefulWidget {
+  const _SubjectRoadmap({required this.database, required this.subject});
 
-  Widget _buildBranch(RoadmapNode node, List<RoadmapNode> all, int depth) {
-    final children = all.where((child) => child.parentId == node.id).toList();
-    final icon = switch (node.status) {
-      'done' => Icons.check_circle,
-      'in_progress' => Icons.play_circle_fill,
-      _ => Icons.circle_outlined,
-    };
-    final color = switch (node.status) {
-      'done' => const Color(0xFF26A27D),
-      'in_progress' => const Color(0xFFE39A2F),
-      _ => const Color(0xFF6482DB),
-    };
-    return Padding(
-      padding: EdgeInsets.only(left: 16 + depth * 28, right: 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 2,
-                height: 24,
-                color: color.withValues(alpha: .35),
-              ),
-              const SizedBox(width: 10),
-              Icon(icon, color: color, size: 20),
-              const SizedBox(width: 10),
-              Expanded(
-                child: ExpansionTile(
-                  tilePadding: EdgeInsets.zero,
-                  childrenPadding: EdgeInsets.zero,
-                  initiallyExpanded: true,
-                  title: Text(
-                    node.title,
-                    style: const TextStyle(fontWeight: FontWeight.w600),
+  final AppDatabase database;
+  final Subject subject;
+
+  @override
+  State<_SubjectRoadmap> createState() => _SubjectRoadmapState();
+}
+
+class _SubjectRoadmapState extends State<_SubjectRoadmap> {
+  late final _nodes = widget.database.watchRoadmap(widget.subject.id);
+  final _collapsed = <String>{};
+
+  Future<void> _editNode(List<RoadmapNode> nodes, {RoadmapNode? node}) async {
+    final formKey = GlobalKey<FormState>();
+    var title = node?.title ?? '';
+    var note = node?.note ?? '';
+    var status = node?.status ?? 'planned';
+    if (!_statuses.containsKey(status)) status = 'planned';
+    String? parentId;
+    final result = await showDialog<RoadmapNode>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(node == null ? 'Thêm nhánh lộ trình' : node.title),
+        scrollable: true,
+        content: SizedBox(
+          width: 420,
+          child: Form(
+            key: formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (node == null) ...[
+                  TextFormField(
+                    onChanged: (value) => title = value.trim(),
+                    autofocus: true,
+                    decoration: const InputDecoration(labelText: 'Tên chủ đề'),
+                    validator: (value) {
+                      if (title.isEmpty) return 'Nhập tên chủ đề.';
+                      if (title.length > 160) return 'Tối đa 160 ký tự.';
+                      return null;
+                    },
                   ),
-                  subtitle: node.note.isEmpty
-                      ? null
-                      : Text(
-                          node.note,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                  trailing: PopupMenuButton<String>(
-                    tooltip: 'Đổi trạng thái',
-                    onSelected: (status) => _changeStatus(node, status),
-                    itemBuilder: (_) => const [
-                      PopupMenuItem(
-                        value: 'planned',
-                        child: Text('Chưa bắt đầu'),
-                      ),
-                      PopupMenuItem(
-                        value: 'in_progress',
-                        child: Text('Đang học'),
-                      ),
-                      PopupMenuItem(value: 'done', child: Text('Hoàn thành')),
-                    ],
-                    icon: const Icon(Icons.more_horiz),
+                  const SizedBox(height: 12),
+                ],
+                TextFormField(
+                  initialValue: note,
+                  onChanged: (value) => note = value,
+                  minLines: 3,
+                  maxLines: 8,
+                  decoration: const InputDecoration(
+                    labelText: 'Ghi chú',
+                    alignLabelWithHint: true,
+                    border: OutlineInputBorder(),
                   ),
-                  children: children
-                      .map((child) => _buildBranch(child, all, depth + 1))
-                      .toList(),
+                  validator: (value) =>
+                      note.trim().length > 5000 ? 'Tối đa 5.000 ký tự.' : null,
                 ),
-              ),
-            ],
+                const SizedBox(height: 12),
+                if (node == null)
+                  DropdownButtonFormField<String?>(
+                    initialValue: parentId,
+                    isExpanded: true,
+                    hint: const Text('Chủ đề gốc'),
+                    decoration: const InputDecoration(labelText: 'Nhánh cha'),
+                    items: [
+                      const DropdownMenuItem<String?>(
+                        value: null,
+                        child: Text('Chủ đề gốc'),
+                      ),
+                      for (final candidate in nodes)
+                        DropdownMenuItem<String?>(
+                          value: candidate.id,
+                          child: Text(
+                            candidate.title,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                    ],
+                    onChanged: (value) => parentId = value,
+                  )
+                else
+                  DropdownButtonFormField<String>(
+                    initialValue: status,
+                    isExpanded: true,
+                    decoration: const InputDecoration(labelText: 'Trạng thái'),
+                    items: [
+                      for (final entry in _statuses.entries)
+                        DropdownMenuItem(
+                          value: entry.key,
+                          child: Text(entry.value),
+                        ),
+                    ],
+                    onChanged: (value) => status = value ?? status,
+                  ),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Hủy'),
+          ),
+          FilledButton(
+            onPressed: () {
+              if (!formKey.currentState!.validate()) return;
+              Navigator.pop(
+                context,
+                node?.copyWith(
+                      note: note.trim(),
+                      status: status,
+                      isSynced: false,
+                    ) ??
+                    RoadmapNode(
+                      id: newId(),
+                      subjectId: widget.subject.id,
+                      parentId: parentId,
+                      title: title,
+                      note: note.trim(),
+                      status: 'planned',
+                      sortOrder: nodes.isEmpty ? 0 : nodes.last.sortOrder + 1,
+                      dueAt: null,
+                      isSynced: false,
+                    ),
+              );
+            },
+            child: Text(node == null ? 'Thêm' : 'Lưu'),
           ),
         ],
       ),
     );
+    if (result == null || !mounted) return;
+    if (node != null &&
+        node.note == result.note &&
+        node.status == result.status) {
+      return;
+    }
+    try {
+      if (node == null) {
+        await widget.database.saveRoadmapNode(result);
+        if (mounted && parentId != null) {
+          setState(() => _collapsed.remove(parentId));
+        }
+      } else {
+        await widget.database.updateRoadmapProgress(
+          result.id,
+          note: result.note,
+          status: result.status,
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Không thể lưu nhánh. Hãy thử lại.')),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: Text(widget.subject.name)),
+    body: StreamBuilder<List<RoadmapNode>>(
+      stream: _nodes,
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return const Center(child: Text('Không thể đọc lộ trình môn học.'));
+        }
+        if (!snapshot.hasData) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        final nodes = snapshot.data!;
+        final completed = nodes.where((node) => node.status == 'done').length;
+        final children = <String?, List<RoadmapNode>>{};
+        for (final node in nodes) {
+          (children[node.parentId] ??= []).add(node);
+        }
+        return ListView(
+          padding: const EdgeInsets.all(20),
+          children: [
+            Text(
+              'Lộ trình môn học',
+              style: Theme.of(context).textTheme.headlineSmall,
+            ),
+            const SizedBox(height: 8),
+            Text('$completed/${nodes.length} nhánh hoàn thành'),
+            if (nodes.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              LinearProgressIndicator(value: completed / nodes.length),
+            ],
+            const SizedBox(height: 16),
+            Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: FilledButton.icon(
+                onPressed: () => _editNode(nodes),
+                icon: const Icon(Icons.add),
+                label: const Text('Thêm nhánh'),
+              ),
+            ),
+            const SizedBox(height: 16),
+            if (nodes.isEmpty)
+              const Text('Chưa có nhánh nào. Hãy thêm chủ đề đầu tiên.'),
+            ..._branches(nodes, children, null, 0),
+          ],
+        );
+      },
+    ),
+  );
+
+  Iterable<Widget> _branches(
+    List<RoadmapNode> nodes,
+    Map<String?, List<RoadmapNode>> children,
+    String? parentId,
+    int depth,
+  ) sync* {
+    for (final node in children[parentId] ?? const <RoadmapNode>[]) {
+      final expanded = !_collapsed.contains(node.id);
+      final hasChildren = children.containsKey(node.id);
+      yield Card(
+        key: ValueKey(node.id),
+        margin: EdgeInsetsDirectional.only(
+          start: 12.0 * depth.clamp(0, 4),
+          bottom: 6,
+        ),
+        child: ListTile(
+          leading: Icon(switch (node.status) {
+            'done' => Icons.check_circle_outline,
+            'in_progress' => Icons.play_circle_outline,
+            _ => Icons.circle_outlined,
+          }),
+          title: Text(node.title),
+          subtitle: Text(
+            [
+              _statuses[node.status] ?? _statuses['planned']!,
+              if (node.note.isNotEmpty) node.note,
+            ].join('\n'),
+            maxLines: 3,
+            overflow: TextOverflow.ellipsis,
+          ),
+          onTap: () => _editNode(nodes, node: node),
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              IconButton(
+                tooltip: 'Sửa ghi chú và trạng thái',
+                icon: const Icon(Icons.edit_outlined),
+                onPressed: () => _editNode(nodes, node: node),
+              ),
+              if (hasChildren)
+                IconButton(
+                  tooltip: expanded ? 'Thu gọn nhánh' : 'Mở rộng nhánh',
+                  icon: Icon(expanded ? Icons.expand_less : Icons.expand_more),
+                  onPressed: () => setState(() {
+                    if (expanded) {
+                      _collapsed.add(node.id);
+                    } else {
+                      _collapsed.remove(node.id);
+                    }
+                  }),
+                ),
+            ],
+          ),
+        ),
+      );
+      if (expanded && hasChildren) {
+        yield* _branches(nodes, children, node.id, depth + 1);
+      }
+    }
   }
 }
