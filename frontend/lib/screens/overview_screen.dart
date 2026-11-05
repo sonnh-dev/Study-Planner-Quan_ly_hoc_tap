@@ -143,24 +143,26 @@ class _StatCard extends StatelessWidget {
               child: Icon(icon),
             ),
             const SizedBox(width: 14),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: Theme.of(context).textTheme.bodySmall
-                      ?.copyWith(color: Colors.black54),
-                ),
-                const SizedBox(height: 5),
-                valueWidget ??
-                    Text(
-                      value ?? '',
-                      style: const TextStyle(
-                        fontSize: 25,
-                        fontWeight: FontWeight.bold,
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: Theme.of(context).textTheme.bodySmall
+                        ?.copyWith(color: Colors.black54),
+                  ),
+                  const SizedBox(height: 5),
+                  valueWidget ??
+                      Text(
+                        value ?? '',
+                        style: const TextStyle(
+                          fontSize: 25,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
-                    ),
-              ],
+                ],
+              ),
             ),
           ],
         ),

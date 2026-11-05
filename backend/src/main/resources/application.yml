@@ -33,4 +33,4 @@ app:
     secret: ${JWT_SECRET}
     expiration-minutes: 10080
   cors:
-    allowed-origins: ${APP_CORS_ORIGINS}
+    allowed-origins: ${APP_CORS_ORIGINS:http://localhost:8386,http://127.0.0.1:8386}

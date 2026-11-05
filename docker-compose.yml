@@ -1,4 +1,18 @@
 services:
+  backend:
+    build: ./backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/study_planner
+      DB_USERNAME: study_planner
+      DB_PASSWORD: ${DB_PASSWORD:-study_planner}
+      JWT_SECRET: ${JWT_SECRET:-}
+      APP_CORS_ORIGINS: ${APP_CORS_ORIGINS:-http://localhost:8386,http://127.0.0.1:8386}
+    ports:
+      - "${SERVER_PORT:-8080}:8080"
+
   postgres:
     image: postgres:16-alpine
     container_name: study-planner-postgres

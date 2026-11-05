@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' show ClientException;
 import 'package:studyplaner/data/api_client.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -40,10 +41,30 @@ class _LoginScreenState extends State<LoginScreen> {
         _register ? '/auth/register' : '/auth/login',
         {'email': _email.text.trim(), 'password': _password.text},
       );
-      final data = response['result'] as Map<String, dynamic>;
-      await widget.onSignedIn(data['token'] as String, data['email'] as String);
-    } catch (error) {
-      if (mounted) setState(() => _error = error.toString());
+      if (response['result']
+          case {'token': final String token, 'email': final String email}
+          when token.isNotEmpty) {
+        await widget.onSignedIn(token, email);
+      } else if (mounted) {
+        setState(() => _error = 'Máy chủ không trả về phiên đăng nhập hợp lệ.');
+      }
+    } on ApiFailure catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _error = switch (error.statusCode) {
+          401 => 'Email hoặc mật khẩu chưa đúng.',
+          409 => 'Email đã được đăng ký. Hãy chọn Đăng nhập.',
+          _ => error.message,
+        };
+      });
+    } on ClientException {
+      if (mounted) {
+        setState(
+          () => _error = 'Không kết nối được API tại ${ApiClient.baseUrl}.',
+        );
+      }
+    } catch (_) {
+      if (mounted) setState(() => _error = 'Chưa thể hoàn tất. Hãy thử lại.');
     } finally {
       if (mounted) setState(() => _busy = false);
     }

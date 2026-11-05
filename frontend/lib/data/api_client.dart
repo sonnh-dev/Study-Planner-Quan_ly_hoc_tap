@@ -6,16 +6,17 @@ class ApiClient {
   ApiClient({http.Client? client}) : _client = client ?? http.Client();
   final http.Client _client;
   String? token;
-  static const _baseUrl = String.fromEnvironment(
+  static const baseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'http://localhost:8080/api/v1',
+    defaultValue: 'http://localhost:8080/api',
   );
-  Uri _uri(String path) => Uri.parse('$_baseUrl$path');
+  Uri _uri(String path) => Uri.parse('$baseUrl$path');
   Future<Map<String, dynamic>> get(String path) => _request('GET', path);
   Future<Map<String, dynamic>> post(String path, Map<String, Object?> body) =>
       _request('POST', path, body);
   Future<Map<String, dynamic>> put(String path, Map<String, Object?> body) =>
       _request('PUT', path, body);
+  Future<Map<String, dynamic>> delete(String path) => _request('DELETE', path);
 
   Future<Map<String, dynamic>> _request(
     String method,
@@ -37,6 +38,7 @@ class ApiClient {
         body: jsonEncode(body),
       ),
       'PUT' => await _client.put(uri, headers: headers, body: jsonEncode(body)),
+      'DELETE' => await _client.delete(uri, headers: headers),
       _ => throw UnsupportedError('Unsupported method: $method'),
     };
     Map<String, dynamic> decoded = {};

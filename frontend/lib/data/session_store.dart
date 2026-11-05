@@ -7,8 +7,8 @@ class SessionStore {
   Future<String?> readToken() => _storage.read(key: _tokenKey);
   Future<String?> readEmail() => _storage.read(key: _emailKey);
   Future<void> save(String token, String email) async {
-    await _storage.write(key: _tokenKey, value: token);
     await _storage.write(key: _emailKey, value: email);
+    await _storage.write(key: _tokenKey, value: token);
   }
 
   Future<void> clear() async {

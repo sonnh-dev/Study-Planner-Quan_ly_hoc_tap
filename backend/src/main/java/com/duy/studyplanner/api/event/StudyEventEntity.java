@@ -20,6 +20,8 @@ public class StudyEventEntity extends OwnedEntity {
     private Instant endsAt;
     @Column(name = "reminder_at")
     private Instant reminderAt;
+    @Column(name = "is_deleted", nullable = false)
+    private boolean deleted;
     protected StudyEventEntity() {}
     public StudyEventEntity(UUID id, UUID userId, String title, String details, Instant startsAt, Instant endsAt, Instant reminderAt) {
         super(id, userId);
@@ -34,6 +36,8 @@ public class StudyEventEntity extends OwnedEntity {
     public Instant getStartsAt() { return startsAt; }
     public Instant getEndsAt() { return endsAt; }
     public Instant getReminderAt() { return reminderAt; }
+    public boolean isDeleted() { return deleted; }
+    public void markDeleted() { deleted = true; }
     public void update(String title, String details, Instant startsAt, Instant endsAt, Instant reminderAt) {
         this.title = title; this.details = details; this.startsAt = startsAt; this.endsAt = endsAt; this.reminderAt = reminderAt;
     }

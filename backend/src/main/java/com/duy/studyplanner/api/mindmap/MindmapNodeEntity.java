@@ -21,6 +21,8 @@ public class MindmapNodeEntity extends OwnedEntity {
     private double positionX;
     @Column(name = "position_y", nullable = false)
     private double positionY;
+    @Column(name = "is_deleted", nullable = false)
+    private boolean deleted;
 
     protected MindmapNodeEntity() {}
     public MindmapNodeEntity(UUID id, UUID userId, UUID subjectId, UUID parentId, String title,
@@ -35,6 +37,12 @@ public class MindmapNodeEntity extends OwnedEntity {
     public String getContent() { return content; }
     public double getPositionX() { return positionX; }
     public double getPositionY() { return positionY; }
+    public boolean isDeleted() { return deleted; }
+    public void detach() { parentId = null; }
+    public void markDeleted() {
+        detach();
+        deleted = true;
+    }
     public void update(UUID subjectId, UUID parentId, String title, String content, double x, double y) {
         this.subjectId = subjectId; this.parentId = parentId; this.title = title;
         this.content = content; this.positionX = x; this.positionY = y;

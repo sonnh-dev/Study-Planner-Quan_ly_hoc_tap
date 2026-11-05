@@ -8,6 +8,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -17,13 +18,16 @@ public class GlobalExceptionHandler {
                 request.getHeader("X-Request-Id"), exception.code(), exception.getMessage(), null));
     }
 
-    @ExceptionHandler({MethodArgumentNotValidException.class, ConstraintViolationException.class})
+    @ExceptionHandler({MethodArgumentNotValidException.class, ConstraintViolationException.class,
+            MethodArgumentTypeMismatchException.class})
     ResponseEntity<ApiResponse<Void>> handleValidation(Exception exception, HttpServletRequest request) {
-        String message = exception instanceof MethodArgumentNotValidException validation
-                ? validation.getBindingResult().getFieldErrors().stream()
-                        .map(error -> error.getField() + ": " + error.getDefaultMessage())
-                        .findFirst().orElse("Invalid request")
-                : "Invalid request";
+        String message = switch (exception) {
+            case MethodArgumentNotValidException validation -> validation.getBindingResult().getFieldErrors().stream()
+                    .map(error -> error.getField() + ": " + error.getDefaultMessage())
+                    .findFirst().orElse("Invalid request");
+            case MethodArgumentTypeMismatchException mismatch -> mismatch.getName() + ": invalid value";
+            default -> "Invalid request";
+        };
         return ResponseEntity.badRequest().body(new ApiResponse<>(
                 request.getHeader("X-Request-Id"), "00101", message, null));
     }

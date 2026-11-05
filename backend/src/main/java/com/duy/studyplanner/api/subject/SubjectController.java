@@ -18,7 +18,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/api/v1/subjects")
+@RequestMapping("/api/subjects")
 public class SubjectController {
     private final SubjectRepository subjects;
     private final UserRepository users;

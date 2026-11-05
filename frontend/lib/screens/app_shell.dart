@@ -83,6 +83,7 @@ class _AppShellState extends State<AppShell> {
       FocusScreen(notifications: widget.notifications),
     ],
   );
+
   @override
   Widget build(BuildContext context) {
     final wide = MediaQuery.sizeOf(context).width >= 820;

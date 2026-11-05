@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:drift/drift.dart' show Value;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -17,6 +18,11 @@ class _MindmapScreenState extends State<MindmapScreen> {
   String? _subjectId;
   String? _selectedNodeId;
   MindmapNode? _draggingNode;
+  late final _subjects = widget.database.watchSubjects();
+  final _streams = <String, Stream<List<MindmapNode>>>{};
+
+  Stream<List<MindmapNode>> _watchMindmap(String subjectId) => _streams
+      .putIfAbsent(subjectId, () => widget.database.watchMindmap(subjectId));
 
   bool _isDesktop(BuildContext context) =>
       defaultTargetPlatform == TargetPlatform.windows ||
@@ -24,7 +30,7 @@ class _MindmapScreenState extends State<MindmapScreen> {
 
   static const _webEditorUrl = String.fromEnvironment(
     'WEB_EDITOR_URL',
-    defaultValue: 'http://localhost:5000',
+    defaultValue: 'http://localhost:8386',
   );
 
   Future<void> _showWebEditorInstructions() => showDialog<void>(
@@ -94,7 +100,7 @@ class _MindmapScreenState extends State<MindmapScreen> {
   );
 
   Widget _buildMobileMindmap() => StreamBuilder<List<Subject>>(
-    stream: widget.database.watchSubjects(),
+    stream: _subjects,
     builder: (context, subjectSnapshot) {
       final subjects = subjectSnapshot.data ?? [];
       final subjectId = subjects.any((row) => row.id == _subjectId)
@@ -149,7 +155,7 @@ class _MindmapScreenState extends State<MindmapScreen> {
             const SizedBox(height: 16),
             StreamBuilder<List<MindmapNode>>(
               key: ValueKey('mobile-mindmap-$subjectId'),
-              stream: widget.database.watchMindmap(subjectId),
+              stream: _watchMindmap(subjectId),
               builder: (context, nodeSnapshot) {
                 if (nodeSnapshot.hasError) {
                   return const Text('Không tải được Mindmap. Hãy thử lại.');
@@ -262,6 +268,7 @@ class _MindmapScreenState extends State<MindmapScreen> {
         title: Text(
           current == null ? 'Thêm ghi chú mindmap' : 'Chỉnh sửa ghi chú',
         ),
+        scrollable: true,
         content: SizedBox(
           width: 420,
           child: Column(
@@ -271,6 +278,7 @@ class _MindmapScreenState extends State<MindmapScreen> {
                 initialValue: current?.title ?? '',
                 onChanged: (value) => title = value,
                 autofocus: true,
+                maxLength: 160,
                 decoration: const InputDecoration(labelText: 'Tiêu đề'),
               ),
               const SizedBox(height: 12),
@@ -278,6 +286,7 @@ class _MindmapScreenState extends State<MindmapScreen> {
                 initialValue: current?.content ?? '',
                 onChanged: (value) => content = value,
                 maxLines: 5,
+                maxLength: 5000,
                 decoration: const InputDecoration(
                   labelText: 'Nội dung ghi chú',
                   border: OutlineInputBorder(),
@@ -303,40 +312,196 @@ class _MindmapScreenState extends State<MindmapScreen> {
       ),
     );
     if (result == null) return;
-    final node = current == null
-        ? MindmapNode(
-            id: newId(),
-            subjectId: subjectId,
-            parentId: parent?.id,
-            title: result.$1,
-            content: result.$2,
-            x: parent == null ? 100 + nodes.length * 24 : parent.x + 210,
-            y: parent == null ? 100 + nodes.length * 24 : parent.y + 110,
-            isSynced: false,
-          )
-        : current.copyWith(
-            title: result.$1,
-            content: result.$2,
-            isSynced: false,
-          );
+    if (current != null) {
+      await widget.database.updateMindmapNode(
+        current.id,
+        MindmapNodesCompanion(
+          title: Value(result.$1),
+          content: Value(result.$2),
+        ),
+      );
+      return;
+    }
+    final x = parent == null ? 24.0 : parent.x + 210;
+    var y = parent?.y ?? 24.0;
+    while (nodes.any(
+      (node) => (node.x - x).abs() < 190 && (node.y - y).abs() < 96,
+    )) {
+      y += 100;
+    }
+    final node = MindmapNode(
+      id: newId(),
+      subjectId: subjectId,
+      parentId: parent?.id,
+      title: result.$1,
+      content: result.$2,
+      x: x,
+      y: y,
+      isSynced: false,
+    );
     await widget.database.saveMindmapNode(node);
     if (mounted) setState(() => _selectedNodeId = node.id);
   }
 
-  MindmapNode? _nodeAt(Offset position, List<MindmapNode> nodes) {
-    for (final node in nodes.reversed) {
-      if (Rect.fromLTWH(node.x, node.y, 170, 76).contains(position)) {
-        return node;
+  Future<void> _connectNode(MindmapNode node, List<MindmapNode> nodes) async {
+    final byId = {for (final item in nodes) item.id: item};
+    final parents = nodes.where((candidate) {
+      final seen = {node.id};
+      for (String? id = candidate.id; id != null; id = byId[id]?.parentId) {
+        if (!seen.add(id)) return false;
       }
+      return candidate.id != node.parentId;
+    }).toList()..sort((a, b) => a.title.compareTo(b.title));
+    final parentId = await showDialog<String>(
+      context: context,
+      builder: (context) => SimpleDialog(
+        title: Text('Nối “${node.title}” vào thẻ'),
+        children: [
+          if (parents.isEmpty)
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              child: Text('Chưa có thẻ phù hợp để nối.'),
+            ),
+          for (final parent in parents)
+            SimpleDialogOption(
+              onPressed: () => Navigator.pop(context, parent.id),
+              child: Text(parent.title),
+            ),
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Hủy'),
+          ),
+        ],
+      ),
+    );
+    if (parentId != null) {
+      await widget.database.updateMindmapNode(
+        node.id,
+        MindmapNodesCompanion(parentId: Value(parentId)),
+      );
     }
-    return null;
+  }
+
+  Future<void> _deleteNode(MindmapNode node) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Xóa thẻ?'),
+        content: Text(
+          'Xóa “${node.title}”. Các nhánh con sẽ trở thành ý chính.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Hủy'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Xóa thẻ'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    await widget.database.deleteMindmapNode(node);
+    if (mounted) setState(() => _selectedNodeId = null);
+  }
+
+  Future<void> _finishDrag() async {
+    final node = _draggingNode;
+    setState(() => _draggingNode = null);
+    if (node != null) {
+      await widget.database.updateMindmapNode(
+        node.id,
+        MindmapNodesCompanion(x: Value(node.x), y: Value(node.y)),
+      );
+    }
+  }
+
+  Widget _canvas(String subjectId, List<MindmapNode> nodes) {
+    final visible = [
+      for (final node in nodes)
+        if (node.id == _draggingNode?.id) _draggingNode! else node,
+    ];
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(18),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final width = visible.fold(
+            constraints.maxWidth,
+            (width, node) => math.max(width, node.x + 210),
+          );
+          final height = visible.fold(
+            constraints.maxHeight,
+            (height, node) => math.max(height, node.y + 116),
+          );
+          return InteractiveViewer(
+            key: ValueKey(subjectId),
+            constrained: false,
+            minScale: 0.35,
+            child: SizedBox(
+              width: width,
+              height: height,
+              child: Stack(
+                children: [
+                  Positioned.fill(
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () => setState(() => _selectedNodeId = null),
+                      child: CustomPaint(
+                        painter: _MindmapPainter(
+                          nodes: visible,
+                          selectedId: _selectedNodeId,
+                        ),
+                      ),
+                    ),
+                  ),
+                  for (final node in visible)
+                    Positioned(
+                      key: ValueKey(node.id),
+                      left: node.x,
+                      top: node.y,
+                      width: 170,
+                      height: 76,
+                      child: Semantics(
+                        label: node.title,
+                        button: true,
+                        selected: _selectedNodeId == node.id,
+                        child: GestureDetector(
+                          behavior: HitTestBehavior.opaque,
+                          onTap: () =>
+                              setState(() => _selectedNodeId = node.id),
+                          onPanStart: (_) => setState(() {
+                            _selectedNodeId = node.id;
+                            _draggingNode = node;
+                          }),
+                          onPanUpdate: (details) => setState(() {
+                            final row = _draggingNode!;
+                            _draggingNode = row.copyWith(
+                              x: math.max(0, row.x + details.delta.dx),
+                              y: math.max(0, row.y + details.delta.dy),
+                            );
+                          }),
+                          onPanEnd: (_) => _finishDrag(),
+                          onPanCancel: () =>
+                              setState(() => _draggingNode = null),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     if (!_isDesktop(context)) return _buildMobileMindmap();
     return StreamBuilder<List<Subject>>(
-      stream: widget.database.watchSubjects(),
+      stream: _subjects,
       builder: (context, subjectSnapshot) {
         final subjects = subjectSnapshot.data ?? [];
         if (subjects.isEmpty) {
@@ -354,124 +519,103 @@ class _MindmapScreenState extends State<MindmapScreen> {
         }
         final subjectId = _subjectId!;
         return StreamBuilder<List<MindmapNode>>(
-          stream: widget.database.watchMindmap(subjectId),
+          key: ValueKey(subjectId),
+          stream: _watchMindmap(subjectId),
           builder: (context, nodeSnapshot) {
             final nodes = nodeSnapshot.data ?? [];
+            final selected = _findNode(nodes, _selectedNodeId);
             return Padding(
-              padding: const EdgeInsets.fromLTRB(22, 16, 22, 22),
+              padding: const EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Row(
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 6,
+                    crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
-                      const Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Bản đồ tư duy',
-                              style: TextStyle(
-                                fontSize: 22,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            SizedBox(height: 4),
-                            Text('Kéo thả các thẻ để sắp xếp ý tưởng.'),
-                          ],
-                        ),
-                      ),
                       DropdownButton<String>(
                         value: subjectId,
-                        items: subjects
-                            .map(
-                              (subject) => DropdownMenuItem(
-                                value: subject.id,
-                                child: Text(subject.name),
-                              ),
-                            )
-                            .toList(),
+                        items: [
+                          for (final subject in subjects)
+                            DropdownMenuItem(
+                              value: subject.id,
+                              child: Text(subject.name),
+                            ),
+                        ],
                         onChanged: (value) => setState(() {
                           _subjectId = value;
                           _selectedNodeId = null;
+                          _draggingNode = null;
                         }),
                       ),
-                      const SizedBox(width: 8),
                       OutlinedButton.icon(
                         onPressed: _addSubject,
                         icon: const Icon(Icons.library_add_outlined),
-                        label: const Text('Môn học'),
+                        label: const Text('Thêm môn'),
                       ),
-                      const SizedBox(width: 8),
                       FilledButton.icon(
-                        onPressed: () => _editNode(
-                          nodes,
-                          subjectId,
-                          parent: _findNode(nodes, _selectedNodeId),
-                        ),
+                        onPressed: () => _editNode(nodes, subjectId),
                         icon: const Icon(Icons.add),
-                        label: Text(
-                          _selectedNodeId == null
-                              ? 'Thêm ý chính'
-                              : 'Thêm nhánh',
-                        ),
+                        label: const Text('Thêm ý chính'),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 14),
-                  Expanded(
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(18),
-                      child: DecoratedBox(
-                        decoration: const BoxDecoration(color: Colors.white),
-                        child: LayoutBuilder(
-                          builder: (context, constraints) {
-                            return GestureDetector(
-                              behavior: HitTestBehavior.opaque,
-                              onTapDown: (details) {
-                                final found = _nodeAt(
-                                  details.localPosition,
-                                  nodes,
-                                );
-                                setState(() => _selectedNodeId = found?.id);
-                                if (found != null) {
-                                  _editNode(nodes, subjectId, editing: found);
-                                }
-                              },
-                              onPanStart: (details) {
-                                _draggingNode = _nodeAt(
-                                  details.localPosition,
-                                  nodes,
-                                );
-                              },
-                              onPanUpdate: (details) async {
-                                final row = _draggingNode;
-                                if (row != null) {
-                                  final moved = row.copyWith(
-                                    x: math.max(0.0, row.x + details.delta.dx),
-                                    y: math.max(0.0, row.y + details.delta.dy),
-                                    isSynced: false,
-                                  );
-                                  _draggingNode = moved;
-                                  await widget.database.saveMindmapNode(moved);
-                                }
-                              },
-                              onPanEnd: (_) => _draggingNode = null,
-                              child: CustomPaint(
-                                size: Size(
-                                  constraints.maxWidth,
-                                  constraints.maxHeight,
-                                ),
-                                painter: _MindmapPainter(
-                                  nodes: nodes,
-                                  selectedId: _selectedNodeId,
+                  const SizedBox(height: 8),
+                  Text(
+                    selected == null
+                        ? 'Bấm vào thẻ để chọn. Kéo nền để di chuyển bản đồ.'
+                        : 'Đang chọn: ${selected.title}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  Wrap(
+                    spacing: 8,
+                    children: [
+                      TextButton(
+                        onPressed: selected == null
+                            ? null
+                            : () =>
+                                  _editNode(nodes, subjectId, parent: selected),
+                        child: const Text('Thêm nhánh'),
+                      ),
+                      TextButton(
+                        onPressed: selected == null
+                            ? null
+                            : () => _editNode(
+                                nodes,
+                                subjectId,
+                                editing: selected,
+                              ),
+                        child: const Text('Chi tiết / Sửa'),
+                      ),
+                      TextButton(
+                        onPressed: selected == null
+                            ? null
+                            : () => _connectNode(selected, nodes),
+                        child: const Text('Nối vào…'),
+                      ),
+                      TextButton(
+                        onPressed: selected == null || selected.parentId == null
+                            ? null
+                            : () => widget.database.updateMindmapNode(
+                                selected.id,
+                                const MindmapNodesCompanion(
+                                  parentId: Value(null),
                                 ),
                               ),
-                            );
-                          },
-                        ),
+                        child: const Text('Gỡ kết nối'),
                       ),
-                    ),
+                      TextButton(
+                        onPressed: selected == null
+                            ? null
+                            : () => _deleteNode(selected),
+                        child: const Text('Xóa thẻ'),
+                      ),
+                    ],
                   ),
+                  const SizedBox(height: 8),
+                  Expanded(child: _canvas(subjectId, nodes)),
                   const SizedBox(height: 8),
                   Text(
                     '${nodes.length} thẻ · Lưu tự động trên thiết bị',

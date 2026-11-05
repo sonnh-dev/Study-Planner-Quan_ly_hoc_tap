@@ -27,9 +27,11 @@ class StudyPlannerApp extends StatefulWidget {
 }
 
 class _StudyPlannerAppState extends State<StudyPlannerApp> {
+  final _messengerKey = GlobalKey<ScaffoldMessengerState>();
   String? _token;
   String? _email;
   bool _ready = false;
+  bool _sessionSaved = false;
 
   @override
   void initState() {
@@ -38,20 +40,46 @@ class _StudyPlannerAppState extends State<StudyPlannerApp> {
   }
 
   Future<void> _restoreSession() async {
-    _token = await widget.session.readToken();
-    _email = await widget.session.readEmail();
-    widget.api.token = _token;
-    if (mounted) setState(() => _ready = true);
+    try {
+      final token = await widget.session.readToken();
+      if (token != null) {
+        final email = await widget.session.readEmail();
+        if (!mounted) return;
+        _token = token;
+        _email = email;
+        _sessionSaved = true;
+        widget.api.token = token;
+      }
+    } catch (_) {
+      // Secure storage can be unavailable. The user can sign in again.
+    } finally {
+      if (mounted) setState(() => _ready = true);
+    }
   }
 
   Future<void> _signedIn(String token, String email) async {
-    await widget.session.save(token, email);
+    var saved = false;
+    try {
+      await widget.session.save(token, email);
+      saved = true;
+    } catch (_) {
+      // Keep the authenticated session in memory if secure storage fails.
+    }
+    if (!mounted) return;
     widget.api.token = token;
-    if (mounted) {
-      setState(() {
-        _token = token;
-        _email = email;
-      });
+    setState(() {
+      _sessionSaved = saved;
+      _token = token;
+      _email = email;
+    });
+    if (!saved) {
+      _messengerKey.currentState?.showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Phiên chỉ dùng lần này. Mở lại app, bạn cần đăng nhập lại.',
+          ),
+        ),
+      );
     }
   }
 
@@ -64,10 +92,11 @@ class _StudyPlannerAppState extends State<StudyPlannerApp> {
   }
 
   Future<void> _signOut() async {
-    await widget.session.clear();
+    if (_sessionSaved) await widget.session.clear();
     widget.api.token = null;
     if (mounted) {
       setState(() {
+        _sessionSaved = false;
         _token = null;
         _email = null;
       });
@@ -77,6 +106,7 @@ class _StudyPlannerAppState extends State<StudyPlannerApp> {
   @override
   Widget build(BuildContext context) => MaterialApp(
     title: 'Study Planner',
+    scaffoldMessengerKey: _messengerKey,
     debugShowCheckedModeBanner: false,
     theme: ThemeData(
       useMaterial3: true,

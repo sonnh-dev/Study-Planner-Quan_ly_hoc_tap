@@ -15,7 +15,6 @@ Future<void> main() async {
   try {
     await notifications.initialize();
   } catch (_) {
-    // Web browsers and locked-down desktop environments may deny notifications.
   }
   runApp(
     StudyPlannerApp(

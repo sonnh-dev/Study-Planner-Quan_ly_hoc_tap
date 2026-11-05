@@ -6,6 +6,8 @@ import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface MindmapNodeRepository extends JpaRepository<MindmapNodeEntity, UUID> {
-    List<MindmapNodeEntity> findAllBySubjectIdAndUserId(UUID subjectId, UUID userId);
+    List<MindmapNodeEntity> findAllBySubjectIdAndUserIdAndDeletedFalse(UUID subjectId, UUID userId);
+    List<MindmapNodeEntity> findAllBySubjectIdAndUserIdAndParentIdAndDeletedFalse(
+            UUID subjectId, UUID userId, UUID parentId);
     Optional<MindmapNodeEntity> findByIdAndUserId(UUID id, UUID userId);
 }
