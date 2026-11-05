@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/cupertino.dart' show CupertinoPicker;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -10,6 +11,7 @@ import 'package:studyplaner/data/notification_service.dart';
 import 'package:studyplaner/data/session_store.dart';
 import 'package:studyplaner/data/sync_service.dart';
 import 'package:studyplaner/screens/app_shell.dart';
+import 'package:studyplaner/screens/focus_screen.dart';
 import 'package:studyplaner/screens/mindmap_screen.dart';
 import 'package:studyplaner/screens/roadmap_screen.dart';
 import 'package:studyplaner/screens/schedule_screen.dart';
@@ -37,21 +39,44 @@ class _UnavailableSessionStore implements SessionStore {
   Future<void> clear() async => throw StateError('Storage unavailable');
 }
 
+class _RestoredSessionStore extends _UnavailableSessionStore {
+  @override
+  Future<String?> readToken() async => 'test-token';
+
+  @override
+  Future<String?> readEmail() async => 'student@example.com';
+
+  @override
+  Future<void> clear() async {}
+}
+
 class _DialogDatabase implements AppDatabase {
   final List<Subject> subjectRows = [];
   final List<RoadmapNode> roadmapRows = [];
   final List<MindmapNode> mindmapRows = [];
   final List<StudyEvent> eventRows = [];
+  final _subjectChanges = StreamController<List<Subject>>.broadcast();
+  final _roadmapChanges = StreamController<void>.broadcast();
   final _eventChanges = StreamController<List<StudyEvent>>.broadcast();
 
   @override
-  Stream<List<Subject>> watchSubjects() =>
-      Stream.value(List.unmodifiable(subjectRows));
+  Stream<List<Subject>> watchSubjects() async* {
+    yield List.unmodifiable(subjectRows);
+    yield* _subjectChanges.stream;
+  }
 
   @override
-  Stream<List<RoadmapNode>> watchRoadmap(String subjectId) => Stream.value(
-    roadmapRows.where((row) => row.subjectId == subjectId).toList(),
+  Stream<Subject?> watchSubject(String id) => watchSubjects().map(
+    (rows) => rows.where((row) => row.id == id).firstOrNull,
   );
+
+  @override
+  Stream<List<RoadmapNode>> watchRoadmap(String subjectId) async* {
+    List<RoadmapNode> rows() =>
+        roadmapRows.where((row) => row.subjectId == subjectId).toList();
+    yield rows();
+    yield* _roadmapChanges.stream.map((_) => rows());
+  }
 
   @override
   Stream<List<MindmapNode>> watchMindmap(String subjectId) => Stream.value(
@@ -65,30 +90,77 @@ class _DialogDatabase implements AppDatabase {
   }
 
   @override
+  Future<List<StudyEvent>> getEvents() async => List.of(eventRows);
+
+  @override
+  Future<StudyEvent?> getEvent(String id) async =>
+      eventRows.where((event) => event.id == id).firstOrNull;
+
+  @override
+  Future<List<StudyEventDeletion>> getEventDeletions() async => [];
+
+  @override
+  Future<bool> hasEventDeletion(String id) async => false;
+
+  @override
   Future<T> transaction<T>(
     Future<T> Function() action, {
     bool requireNew = false,
   }) => action();
 
   @override
-  Future<void> saveSubject(Subject row) async => subjectRows.add(row);
-
-  @override
-  Future<void> saveRoadmapNode(RoadmapNode row) async {
-    roadmapRows.removeWhere((existing) => existing.id == row.id);
-    roadmapRows.add(row);
+  Future<void> saveSubject(Subject row) async {
+    subjectRows.add(row);
+    _subjectChanges.add(List.unmodifiable(subjectRows));
   }
 
   @override
-  Future<void> updateRoadmapProgress(
+  Future<void> updateSubject(Subject row) async {
+    subjectRows[subjectRows.indexWhere((existing) => existing.id == row.id)] =
+        row;
+    _subjectChanges.add(List.unmodifiable(subjectRows));
+  }
+
+  @override
+  Future<void> deleteSubject(String id, {bool queue = true}) async {
+    subjectRows.removeWhere((row) => row.id == id);
+    roadmapRows.removeWhere((row) => row.subjectId == id);
+    _subjectChanges.add(List.unmodifiable(subjectRows));
+    _roadmapChanges.add(null);
+  }
+
+  @override
+  Future<void> saveRoadmapEdit(RoadmapNode row, {required bool create}) async {
+    roadmapRows.removeWhere((existing) => existing.id == row.id);
+    roadmapRows.add(row.copyWith(isSynced: false));
+    _roadmapChanges.add(null);
+  }
+
+  @override
+  Future<void> deleteRoadmapNode(
+    String subjectId,
     String id, {
-    required String note,
-    required String status,
-  }) => saveRoadmapNode(
-    roadmapRows
-        .singleWhere((row) => row.id == id)
-        .copyWith(note: note, status: status, isSynced: false),
-  );
+    bool queue = true,
+  }) async {
+    roadmapRows.removeWhere((row) => row.id == id);
+    for (var index = 0; index < roadmapRows.length; index++) {
+      if (roadmapRows[index].parentId == id) {
+        final row = roadmapRows[index];
+        roadmapRows[index] = RoadmapNode(
+          id: row.id,
+          subjectId: row.subjectId,
+          parentId: null,
+          title: row.title,
+          note: row.note,
+          status: row.status,
+          sortOrder: row.sortOrder,
+          dueAt: row.dueAt,
+          isSynced: row.isSynced,
+        );
+      }
+    }
+    _roadmapChanges.add(null);
+  }
 
   @override
   Future<void> saveEvent(StudyEvent row) async {
@@ -161,6 +233,70 @@ Future<void> _openScreen(
 }
 
 void main() {
+  testWidgets('Hẹn giờ tập trung dùng mốc nhanh và thời lượng tùy chỉnh', (
+    tester,
+  ) async {
+    final notifications = _DialogNotifications();
+    await _openScreen(
+      tester,
+      FocusScreen(notifications: notifications),
+      size: const Size(320, 500),
+    );
+    for (final label in ['10 phút', '15 phút', '20 phút', '30 phút', '1 giờ']) {
+      expect(find.widgetWithText(ChoiceChip, label), findsOneWidget);
+    }
+    await tester.tap(find.text('1 giờ'));
+    await tester.pumpAndSettle();
+    expect(find.text('01:00:00'), findsOneWidget);
+    await tester.tap(find.text('15 phút'));
+    await tester.pumpAndSettle();
+    final clock = find.text('00:15:00');
+    await tester.ensureVisible(clock);
+    await tester.pumpAndSettle();
+    await tester.tap(clock);
+    await tester.pumpAndSettle();
+
+    final wheels = tester
+        .widgetList<CupertinoPicker>(find.byType(CupertinoPicker))
+        .toList();
+    expect(wheels, hasLength(3));
+    wheels[1].scrollController!.jumpToItem(0);
+    await tester.pumpAndSettle();
+    final apply = find.widgetWithText(FilledButton, 'Áp dụng');
+    expect(tester.widget<FilledButton>(apply).onPressed, isNull);
+    wheels[0].scrollController!.jumpToItem(1);
+    wheels[1].scrollController!.jumpToItem(2);
+    wheels[2].scrollController!.jumpToItem(5);
+    await tester.pumpAndSettle();
+    await tester.tap(apply);
+    await tester.pumpAndSettle();
+    expect(find.text('01:02:05'), findsOneWidget);
+
+    final start = find.text('Bắt đầu');
+    await tester.ensureVisible(start);
+    await tester.pumpAndSettle();
+    await tester.tap(start);
+    await tester.pump(const Duration(seconds: 2));
+    expect(find.text('01:02:03'), findsOneWidget);
+    expect(find.text('Chỉnh thời lượng'), findsNothing);
+    final pause = find.text('Tạm dừng');
+    await tester.ensureVisible(pause);
+    await tester.pump();
+    await tester.tap(pause);
+    await tester.pump(const Duration(seconds: 2));
+    expect(find.text('01:02:03'), findsOneWidget);
+    expect(find.text('Tiếp tục'), findsOneWidget);
+    final reset = find.text('Đặt lại');
+    await tester.ensureVisible(reset);
+    await tester.pumpAndSettle();
+    await tester.tap(reset);
+    await tester.pumpAndSettle();
+    expect(find.text('01:02:05'), findsOneWidget);
+    expect(notifications.scheduledTitles, ['Hẹn giờ tập trung đã kết thúc']);
+    expect(notifications.canceledIds, hasLength(2));
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('Registration opens the app when secure storage is unavailable', (
     tester,
   ) async {
@@ -202,6 +338,83 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(AppShell), findsNothing);
     expect(api.token, isNull);
+  });
+
+  testWidgets('Lịch tự đồng bộ mỗi phút trong phiên đăng nhập', (tester) async {
+    const eventResponse =
+        '{"result":[{"id":"event-1","title":"Học Toán",'
+        '"startsAt":"2026-11-05T12:00:00Z","endsAt":"2026-11-05T13:00:00Z",'
+        '"reminderAt":"2026-11-05T11:50:00Z"}]}';
+    const jsonHeaders = {'content-type': 'application/json; charset=utf-8'};
+    final database = _DialogDatabase();
+    final notifications = _DialogNotifications();
+    final firstRequest = Completer<http.Response>();
+    final lateRequest = Completer<http.Response>();
+    var polls = 0;
+    final client = MockClient((request) async {
+      expect(request.method, 'GET');
+      expect(request.url.path, '/api/events');
+      expect(request.url.queryParameters['includeDeleted'], 'true');
+      expect(request.headers['Authorization'], 'Bearer test-token');
+      return switch (++polls) {
+        1 => firstRequest.future,
+        4 => lateRequest.future,
+        _ => http.Response(eventResponse, 200, headers: jsonHeaders),
+      };
+    });
+    addTearDown(client.close);
+    final api = ApiClient(client: client);
+    await tester.pumpWidget(
+      StudyPlannerApp(
+        database: database,
+        api: api,
+        session: _RestoredSessionStore(),
+        sync: SyncService(database, api, notifications),
+        notifications: notifications,
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.pump(const Duration(seconds: 59));
+    expect(polls, 0);
+    await tester.pump(const Duration(seconds: 1));
+    expect(polls, 1);
+    await tester.pump(const Duration(minutes: 1));
+    expect(polls, 1);
+    final syncButton = find.byWidgetPredicate(
+      (widget) => widget is IconButton && widget.tooltip == 'Đồng bộ dữ liệu',
+    );
+    expect(tester.widget<IconButton>(syncButton).onPressed, isNull);
+
+    firstRequest.complete(http.Response('{}', 503));
+    await tester.pumpAndSettle();
+    expect(find.byType(SnackBar), findsNothing);
+    await tester.pump(const Duration(minutes: 1));
+    await tester.pumpAndSettle();
+    expect(polls, 2);
+    expect(database.eventRows.single.title, 'Học Toán');
+    await tester.pump(const Duration(minutes: 1));
+    await tester.pumpAndSettle();
+    expect(polls, 3);
+    expect(notifications.scheduledTitles, ['Học Toán']);
+
+    await tester.pump(const Duration(minutes: 1));
+    expect(polls, 4);
+    await tester.tap(find.byTooltip('student@example.com'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 350));
+    await tester.tap(find.text('Đăng xuất'));
+    await tester.pumpAndSettle();
+    expect(api.token, isNull);
+    lateRequest.complete(
+      http.Response(
+        eventResponse.replaceFirst('event-1', 'late-event'),
+        200,
+        headers: jsonHeaders,
+      ),
+    );
+    await tester.pump(const Duration(minutes: 2));
+    expect(database.eventRows.single.id, 'event-1');
+    expect(polls, 4);
   });
 
   for (final mindmap in [false, true]) {
@@ -519,14 +732,21 @@ void main() {
     await tester.tap(find.text(child.title));
     await tester.pumpAndSettle();
     expect(find.text(child.note), findsOneWidget);
-    await tester.enterText(find.byType(TextFormField), 'Bỏ thay đổi');
+    await tester.enterText(find.byType(TextFormField).at(1), 'Bỏ thay đổi');
     await tester.tap(find.text('Hủy'));
     await tester.pumpAndSettle();
     expect(database.roadmapRows.last, child);
 
     await tester.tap(find.text(child.title));
     await tester.pumpAndSettle();
-    await tester.enterText(find.byType(TextFormField), '  Làm lại bài 3  ');
+    await tester.enterText(
+      find.byType(TextFormField).at(0),
+      '  Giới hạn dãy số  ',
+    );
+    await tester.enterText(
+      find.byType(TextFormField).at(1),
+      '  Làm lại bài 3  ',
+    );
     await tester.tap(find.byType(DropdownButtonFormField<String>));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Hoàn thành').last);
@@ -536,13 +756,79 @@ void main() {
     expect(tester.takeException(), isNull);
     expect(
       database.roadmapRows.last,
-      child.copyWith(note: 'Làm lại bài 3', status: 'done', isSynced: false),
+      child.copyWith(
+        title: 'Giới hạn dãy số',
+        note: 'Làm lại bài 3',
+        status: 'done',
+        isSynced: false,
+      ),
     );
     await tester.pageBack();
     await tester.pumpAndSettle();
     await tester.tap(find.text(_subject.name));
     await tester.pumpAndSettle();
     expect(find.text('1/2 nhánh hoàn thành'), findsOneWidget);
-    expect(find.text('Hoàn thành\nLàm lại bài 3'), findsOneWidget);
+    expect(find.text('Giới hạn dãy số'), findsOneWidget);
+    expect(find.textContaining('Làm lại bài 3'), findsOneWidget);
+
+    final parentTile = find.ancestor(
+      of: find.text(parent.title),
+      matching: find.byType(ListTile),
+    );
+    await tester.tap(
+      find.descendant(
+        of: parentTile,
+        matching: find.byTooltip('Thao tác nhánh'),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Xóa nhánh'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('sẽ được đưa lên gốc'), findsOneWidget);
+    await tester.tap(find.text('Xóa'));
+    await tester.pumpAndSettle();
+    expect(find.text(parent.title), findsNothing);
+    expect(find.text('Giới hạn dãy số'), findsOneWidget);
+    expect(database.roadmapRows.single.parentId, isNull);
+
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    final subjectTile = find.ancestor(
+      of: find.text(_subject.name),
+      matching: find.byType(ListTile),
+    );
+    await tester.tap(
+      find.descendant(
+        of: subjectTile,
+        matching: find.byTooltip('Thao tác môn học'),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Đổi tên môn học'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextFormField), 'Toán giải tích');
+    await tester.tap(find.text('Lưu'));
+    await tester.pumpAndSettle();
+    expect(find.text('Toán giải tích'), findsOneWidget);
+    expect(database.subjectRows.first.id, _subject.id);
+
+    final renamedTile = find.ancestor(
+      of: find.text('Toán giải tích'),
+      matching: find.byType(ListTile),
+    );
+    await tester.tap(
+      find.descendant(
+        of: renamedTile,
+        matching: find.byTooltip('Thao tác môn học'),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Xóa môn học'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Mindmap'), findsOneWidget);
+    await tester.tap(find.text('Xóa'));
+    await tester.pumpAndSettle();
+    expect(database.subjectRows, [other]);
+    expect(database.roadmapRows, isEmpty);
   });
 }

@@ -95,12 +95,12 @@ public class MindmapController {
     }
 
     private void lockSubject(UUID subjectId, UUID userId) {
-        if (subjects.lockByIdAndUserId(subjectId, userId).isEmpty()) {
+        if (subjects.lockByIdAndUserId(subjectId, userId).filter(subject -> !subject.isDeleted()).isEmpty()) {
             throw new ApiException("01203", "Subject not found", HttpStatus.NOT_FOUND);
         }
     }
     private void requireSubject(UUID subjectId, UUID userId) {
-        if (subjects.findByIdAndUserId(subjectId, userId).isEmpty()) {
+        if (subjects.findByIdAndUserIdAndDeletedFalse(subjectId, userId).isEmpty()) {
             throw new ApiException("01203", "Subject not found", HttpStatus.NOT_FOUND);
         }
     }

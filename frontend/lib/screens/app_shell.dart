@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:studyplaner/data/api_client.dart';
 import 'package:studyplaner/data/app_database.dart';
@@ -32,6 +34,7 @@ class AppShell extends StatefulWidget {
 class _AppShellState extends State<AppShell> {
   int _selected = 0;
   bool _syncing = false;
+  Timer? _scheduleSyncTimer;
   final _titles = const [
     'Tổng quan',
     'Lịch học',
@@ -46,17 +49,41 @@ class _AppShellState extends State<AppShell> {
     Icons.hub_rounded,
     Icons.timer_outlined,
   ];
-  Future<void> _sync() async {
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.api.token != null) {
+      _scheduleSyncTimer = Timer.periodic(const Duration(minutes: 1), (_) {
+        unawaited(_sync(scheduleOnly: true));
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _scheduleSyncTimer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _sync({bool scheduleOnly = false}) async {
+    if (_syncing) return;
     if (widget.api.token == null) {
-      _message('Đăng nhập để đồng bộ dữ liệu với thiết bị khác.');
+      if (!scheduleOnly) {
+        _message('Đăng nhập để đồng bộ dữ liệu với thiết bị khác.');
+      }
       return;
     }
     setState(() => _syncing = true);
     try {
-      await widget.sync.sync();
-      _message('Đồng bộ hoàn tất.');
+      if (scheduleOnly) {
+        await widget.sync.syncEvents();
+      } else {
+        await widget.sync.sync();
+        _message('Đồng bộ hoàn tất.');
+      }
     } catch (error) {
-      _message('Chưa đồng bộ được: $error');
+      if (!scheduleOnly) _message('Chưa đồng bộ được: $error');
     } finally {
       if (mounted) setState(() => _syncing = false);
     }

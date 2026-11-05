@@ -84,7 +84,7 @@ Tài liệu đi theo 25 câu hỏi cho mỗi trang. **Lộ trình** được chi
 
 ## 3. Lịch học
 
-[ScheduleScreen](../frontend/lib/screens/schedule_screen.dart#L44) · [Bảng theo ngày](../frontend/lib/screens/schedule_screen.dart#L381) · [Hộp thoại thêm và sửa](../frontend/lib/screens/schedule_screen.dart#L579) · [Query Drift](../frontend/lib/data/app_database.dart#L114) · [Đồng bộ lịch](../frontend/lib/data/sync_service.dart#L46)
+[ScheduleScreen](../frontend/lib/screens/schedule_screen.dart#L44) · [Bảng theo ngày](../frontend/lib/screens/schedule_screen.dart#L381) · [Hộp thoại thêm và sửa](../frontend/lib/screens/schedule_screen.dart#L579) · [Query Drift](../frontend/lib/data/app_database.dart#L169) · [Đồng bộ lịch](../frontend/lib/data/sync_service.dart)
 
 | # | Chủ đề | Câu trả lời |
 | --- | --- | --- |
@@ -110,71 +110,71 @@ Tài liệu đi theo 25 câu hỏi cho mỗi trang. **Lộ trình** được chi
 | 20 | Async/await | `_applyChange` chờ ghi SQLite rồi cập nhật nhắc giờ. Các callback chọn ngày hoặc giờ kiểm tra `mounted` trước khi cập nhật widget. |
 | 21 | Thử làm hỏng | Đặt giờ kết thúc bằng giờ bắt đầu rồi bấm **Lưu lịch**. Form phải báo lỗi và giữ nguyên dữ liệu đã lưu. |
 | 22 | Live-code lọc theo ngày | Tạo một buổi qua nửa đêm và chuyển qua hai ngày liên tiếp. Ngày đầu hiển thị đến `24:00`, ngày sau hiển thị từ `00:00`. |
-| 23 | Auth/session | Thêm, sửa và xóa đều chạy qua SQLite. GET, PUT và DELETE chạy khi bấm đồng bộ trong phiên đăng nhập. Lỗi `401` do Shell hiển thị. |
+| 23 | Auth/session | Thêm, sửa và xóa đều chạy qua SQLite. Sau khi đăng nhập hoặc khôi phục phiên, Shell đồng bộ lịch mỗi phút khi app đang mở. Nút **Đồng bộ dữ liệu** chạy đồng bộ toàn bộ và báo lỗi khi thất bại. |
 | 24 | Bộ nhớ | `StreamBuilder` quản lý subscription. Hai controller của form được dispose. Lịch nhắc do hệ điều hành quản lý và được cập nhật khi sửa hoặc xóa. |
 | 25 | Phân trang | API lịch hiện trả danh sách của tài khoản. Flutter lấy các buổi giao với ngày đang chọn để dựng bảng. |
 
 ## 4. Lộ trình — Danh sách môn
 
-[RoadmapScreen và `_addSubject`](../frontend/lib/screens/roadmap_screen.dart#L11) · [Query môn học](../frontend/lib/data/app_database.dart#L86) · [API môn học](api.md#danh-sách-endpoint)
+[RoadmapScreen và `_editSubject`](../frontend/lib/screens/roadmap_screen.dart#L16) · [Query môn học](../frontend/lib/data/app_database.dart#L119) · [API môn học](api.md#danh-sách-endpoint)
 
 | # | Chủ đề | Câu trả lời |
 | --- | --- | --- |
-| 01 | Blind-test UI | `StreamBuilder → ListView` gồm tiêu đề, nút thêm môn, trạng thái rỗng và `Card → ListTile`. Đổi icon môn ở `ListTile.leading` và icon mũi tên ở `trailing` trong `RoadmapScreen.build`. |
-| 02 | Tối ưu layout | Danh sách hiện dùng `for (final subject in subjects)` trong `ListView.children`. Với nhiều môn, giữ header và dùng builder cho từng item theo index; gán `ValueKey(subject.id)` khi cần giữ identity theo ID. |
+| 01 | Blind-test UI | `StreamBuilder → _RoadmapList → ListView.builder`. Mỗi môn hiện tên, icon lấy màu môn và menu đổi tên hoặc xóa. |
+| 02 | Tối ưu layout | `ListView.builder` dựng từng dòng khi cần hiển thị. `ValueKey(subject.id)` xác định dòng theo ID. |
 | 03 | Overflow | Form thêm môn dùng `AlertDialog(scrollable: true)`. Tên môn trên tile là `Text(subject.name)`; chưa giới hạn dòng. Thêm `maxLines` và `TextOverflow.ellipsis` nếu muốn tile cố định. |
-| 04 | Responsive | Danh sách vẫn một cột khi xoay. Shell đổi cách điều hướng ở 820 px. Nếu muốn nhiều cột trên vùng rộng, dùng `LayoutBuilder` và `SliverGrid` cho danh sách môn. |
-| 05 | Nguồn dữ liệu và lỗi | `_subjects = database.watchSubjects()` đọc Drift theo tên. Builder có `hasError`, `hasData` và loading. Ghi lỗi hiện SnackBar trong `_addSubject`; GET/PUT server nằm trong `SyncService`, lỗi sync do Shell báo. |
+| 04 | Responsive | Danh sách giới hạn chiều rộng 920 px. Tiêu đề và nút thêm nằm trong `Wrap` để tự xuống dòng trên màn hình hẹp. |
+| 05 | Nguồn dữ liệu và lỗi | `watchSubjects()` đọc Drift theo tên. Builder hiển thị tải và lỗi đọc. Lỗi ghi hiện qua SnackBar, lỗi đồng bộ do Shell báo. |
 | 06 | Lifecycle | Stream được tạo bằng `late final` trong State và nghe bởi `StreamBuilder`. Trang không khai báo `initState/dispose`; dialog dùng biến tên và `GlobalKey<FormState>` cục bộ. |
-| 07 | UI tree | Cùng file có `RoadmapScreen` và `_SubjectRoadmap`. Trang danh sách giữ logic tạo/chọn môn. Có thể tách tile và dialog thêm môn khi cần tái sử dụng trong Mindmap. |
-| 08 | Tương tác | `onPressed: _addSubject` mở form. `ListTile.onTap` gọi `_openSubject(subject)`, dùng `Navigator.push`. |
-| 09 | Theme | Tiêu đề dùng `textTheme`; nút và Card dùng theme chung. Màu dữ liệu `#5685F7` được gán khi tạo, còn icon trong danh sách chưa lấy màu từ trường `color`. |
-| 10 | Data flow | Tạo môn → validate form → tạo UUID và `Subject(isSynced: false)` → `saveSubject` → Drift phát dữ liệu → `_openSubject` mở chi tiết sau khi ghi thành công. |
+| 07 | UI tree | `RoadmapScreen` chứa danh sách môn và form tạo hoặc đổi tên. `_SubjectRoadmap` mở thành route riêng. |
+| 08 | Tương tác | Bấm tên môn để mở chi tiết. Menu của dòng mở **Đổi tên môn học** hoặc **Xóa môn học**. |
+| 09 | Theme | `CircleAvatar` đọc màu từ `subject.color`. Mã màu sai dùng màu mặc định `#5685F7`. |
+| 10 | Data flow | Form hợp lệ gọi `saveSubject` khi tạo và `updateSubject` khi đổi tên. Tạo thành công mở chi tiết, đổi tên cập nhật dòng theo cùng UUID. |
 | 11 | State | Danh sách ở stream, tên đang nhập là biến trong dialog. Nếu cần chọn chung một môn giữa Roadmap và Mindmap, đưa `selectedSubjectId` lên Shell hoặc controller dùng chung; đọc bản ghi theo ID. |
-| 12 | Impact | Ví dụ hiển thị màu môn hiện có, chỉ cần đổi `ListTile.leading` để dùng `subject.color` và xử lý mã sai. Nếu thêm mã môn lưu lâu dài, đi qua entity/migration/DTO → Drift → sync → form và tile. |
+| 12 | Impact | Xóa môn ghi UUID vào `subject_deletions`. Server dùng cờ `subjects.is_deleted` để ẩn môn và nội dung liên quan. |
 | 13 | Rebuild | Bảng môn đổi thì builder tạo lại cây danh sách. Gõ tên ở dialog chưa ghi bảng, vì vậy stream chưa phát. Dùng Track Widget Builds và đối chiếu lúc gõ với lúc Save. |
-| 14 | Null safety và JSON | `_pullSubjects` đọc `id/name` bắt buộc và dùng `#5685F7` khi `color` thiếu. `Subject.fromJson` do Drift sinh có schema riêng gồm `isSynced`; sync hiện dựng model thủ công. |
+| 14 | Null safety và JSON | `_pullSubjects` xử lý `deleted: true` trước khi đọc tên và màu. Bản local đang chờ sửa hoặc xóa được giữ cho lần đồng bộ tiếp theo. |
 | 15 | Navigation | `_openSubject` dùng `push`, nên Back ở chi tiết trả về danh sách. Back ở dialog đóng form, còn Back tại tab gốc không quay lại tab trước. |
 | 16 | Data passing | Shell truyền `database` vào `RoadmapScreen`. `_openSubject` truyền `Subject` và `database` qua constructor `_SubjectRoadmap`. |
-| 17 | Local storage | `await widget.database.saveSubject(subject)` ghi ngay sau tạo model. `watchSubjects` nạp ban đầu và phát sau mỗi ghi liên quan. |
+| 17 | Local storage | Drift ghi xóa môn và dọn nhánh lộ trình, Mindmap của môn trong cùng giao dịch. `watchSubjects()` phát danh sách mới sau khi ghi. |
 | 18 | Nợ kỹ thuật | Tạo môn xuất hiện ở cả Roadmap và Mindmap với cách validate khác nhau. Nếu mở rộng, dùng một dialog và hàm tạo môn dùng chung, giữ điều hướng riêng cho từng trang. |
-| 19 | Live-code xác nhận | Bọc `onTap` của tile bằng xác nhận. Sau `await`, kiểm tra `mounted` rồi mới gọi `_openSubject(subject)`. |
+| 19 | Live-code xác nhận | Mở **Xóa môn học**, kiểm tra xác nhận nhắc đến Lộ trình và Mindmap, rồi bấm **Hủy** để kiểm tra môn vẫn còn. |
 | 20 | Async/await | Bỏ `await saveSubject` có thể mở chi tiết trước khi ghi môn xong và bỏ lọt lỗi ghi. `mounted` sau await ngăn mở route từ context đã bị gỡ. |
 | 21 | Thử làm hỏng | Tạm bỏ kiểm tra `formKey.currentState!.validate()`. Tên rỗng có thể đi tới bước ghi và bị Drift từ chối. Khôi phục validate để hiện lỗi ngay trong form. |
 | 22 | Live-code debounce | Tên môn hiện chỉ validate local. Nếu thêm ô tìm danh sách, debounce `onChanged` 500 ms và lọc theo tên ở Drift hoặc API tìm kiếm được bổ sung. |
-| 23 | Auth/session | Tạo môn offline. Đồng bộ lấy JWT từ `ApiClient` và Spring Boot gắn môn với chủ sở hữu. Nếu 401, lỗi hiện trên Shell; danh sách local vẫn đọc được. |
+| 23 | Auth/session | Có thể thêm, đổi tên hoặc xóa môn offline. Khi đồng bộ, backend kiểm tra quyền sở hữu theo JWT. |
 | 24 | Bộ nhớ | Subscription thuộc `StreamBuilder`. Form không tạo `TextEditingController` riêng. `late final` ổn định stream qua các lần build của cùng State. |
 | 25 | Pagination | Server hiện trả toàn bộ môn theo tên. Thêm cursor theo `name,id`, đổi `_pullSubjects` để hợp nhất từng trang và dùng builder. Đồng bộ Roadmap/Mindmap cần vẫn xử lý đủ các môn liên quan. |
 
 ## 5. Lộ trình — Chi tiết môn
 
-[`_SubjectRoadmap`, form và cây](../frontend/lib/screens/roadmap_screen.dart#L134) · [Query và lưu nhánh](../frontend/lib/data/app_database.dart#L117) · [Đồng bộ lộ trình](../frontend/lib/data/sync_service.dart#L98)
+[`_SubjectRoadmap` và cây](../frontend/lib/screens/roadmap_screen.dart#L185) · [Form nhánh](../frontend/lib/screens/roadmap_screen.dart#L579) · [Query và lưu nhánh](../frontend/lib/data/app_database.dart#L219) · [Đồng bộ lộ trình](../frontend/lib/data/sync_service.dart#L180)
 
 | # | Chủ đề | Câu trả lời |
 | --- | --- | --- |
-| 01 | Blind-test UI | `Scaffold → AppBar → StreamBuilder → ListView` chứa `LinearProgressIndicator`, nút thêm và cây `Card/ListTile`. Đổi icon trạng thái trong `switch(node.status)` ở `_branches`; đổi màu thanh tiến độ qua `LinearProgressIndicator.color`. |
-| 02 | Tối ưu layout | `_branches` là `sync*` đệ quy, nhưng spread vào `ListView.children` vẫn tạo toàn bộ nhánh đang mở. Muốn lazy build, làm phẳng danh sách node nhìn thấy kèm `depth`, rồi `itemBuilder` dựng từng hàng. |
+| 01 | Blind-test UI | `Scaffold → AppBar → StreamBuilder → _RoadmapList`. Header có nút thêm nhánh và thẻ tiến độ. Mỗi dòng có trạng thái và menu thao tác. |
+| 02 | Tối ưu layout | `_visibleBranches` làm phẳng cây bằng ngăn xếp, rồi `ListView.builder` dựng từng hàng. Nhánh đã thu gọn ẩn các dòng con. |
 | 03 | Overflow | Ghi chú ở tile có `maxLines: 3` và `TextOverflow.ellipsis`. Form có `scrollable: true`. Lề cây giới hạn độ sâu hiển thị ở 4. `Text(node.title)` chưa giới hạn dòng; thử title dài khi có hai icon bên phải. |
-| 04 | Responsive | Chi tiết là route toàn màn hình, luôn một cột có cuộn. Xoay ngang cho thêm chiều ngang, không tự chuyển sang hai cột. Muốn xem cây và ghi chú cạnh nhau, dùng `LayoutBuilder` để chọn bố cục theo chiều rộng. |
+| 04 | Responsive | Chi tiết dùng một cột, giới hạn 920 px. Lề thụt của nhánh dừng ở bốn cấp để chừa chỗ đọc trên màn hình hẹp. |
 | 05 | Nguồn dữ liệu và lỗi | `watchRoadmap(subject.id)` lọc môn và sắp theo `sortOrder`. Builder hiện lỗi đọc; `_editNode` bắt lỗi ghi và hiện SnackBar. HTTP 500 đi qua luồng đồng bộ ở Shell khi quay về màn hình chính. |
-| 06 | Lifecycle | `_nodes` là stream `late final`; `_collapsed` lưu ID nhánh đã thu gọn. Màn hình dùng `StreamBuilder` nên không giữ subscription thủ công. Form dùng `TextFormField.initialValue` và biến cục bộ. |
-| 07 | UI tree | `_SubjectRoadmap` chứa form, header và hàm dựng cây `_branches`. Tách `RoadmapNodeTile` và dialog giúp test trạng thái và giới hạn phần UI phụ thuộc vào từng node. |
-| 08 | Tương tác | **Thêm nhánh**, tap tile và nút sửa đều gọi `_editNode` với đối số khác nhau. Icon thu/mở đổi `_collapsed` bằng `setState`. |
-| 09 | Theme | Chữ tiêu đề theo `textTheme`; Card, icon và progress dùng theme Material mặc định. Tên icon theo trạng thái được khai báo trực tiếp trong `_branches`. |
-| 10 | Data flow | Sửa → dialog trả `RoadmapNode` → `updateRoadmapProgress(id, note, status)` đặt `isSynced = false` → `watchRoadmap` phát → cây và số nhánh hoàn thành cập nhật. Nhánh mới đi qua `saveRoadmapNode`. |
+| 06 | Lifecycle | `_subject` và `_nodes` là stream ổn định qua các lần build. `_collapsed` giữ ID nhánh thu gọn. Form có State riêng. |
+| 07 | UI tree | `_SubjectRoadmap` chứa `_RoadmapProgress` và `_RoadmapBranchTile`. `_RoadmapNodeDialog` giữ dữ liệu form và trả về một `RoadmapNode`. |
+| 08 | Tương tác | Bấm dòng để sửa. Menu có sửa, thêm con hoặc xóa. Nút thu gọn và mở rộng đổi `_collapsed`. |
+| 09 | Theme | `_RoadmapProgress` dùng màu nền `primaryContainer`. `_RoadmapBranchTile` chọn biểu tượng theo trạng thái. |
+| 10 | Data flow | Form trả `RoadmapNode`. `saveRoadmapEdit` kiểm tra cha, lưu nhánh và đặt `isSynced = false`. Stream cập nhật cây và tiến độ. |
 | 11 | State | Dữ liệu nghiệp vụ ở Drift, UI giữ `_collapsed` cục bộ. Nếu cần nhớ cây đã mở khi đổi trang, đặt state theo `subjectId` trong controller dùng chung hoặc lưu tùy chọn riêng. |
-| 12 | Impact | Hạn học `dueAt` đã có trong PostgreSQL, Drift và sync, nhưng form tạo đặt `null` và màn hình chưa đọc nó. Muốn hiện hạn thì sửa tile; muốn chỉnh hạn thì mở rộng form và hàm cập nhật. |
+| 12 | Impact | Hạn học `dueAt` được chọn hoặc bỏ trong form, hiển thị trên dòng và gửi qua API dưới dạng ISO 8601. |
 | 13 | Rebuild | Thu/mở dùng `setState`, dựng lại builder/cây đang nhìn thấy. Ghi ghi chú kích hoạt stream theo môn. `ValueKey(node.id)` giữ identity nhưng không ngăn rebuild. Dùng DevTools ghi hai lần thao tác để so sánh. |
-| 14 | Null safety và JSON | `_pullRoadmap` dùng mặc định cho `note/status/sortOrder`, chấp nhận `parentId/dueAt` rỗng. `id/subjectId/title` sai kiểu hoặc ngày không parse được làm sync lỗi. Factory `RoadmapNode.fromJson` do Drift sinh không nằm trên đường parse API. |
+| 14 | Null safety và JSON | `_pullRoadmap` dùng mặc định cho `note/status/sortOrder`, chấp nhận `parentId/dueAt` rỗng và xử lý `deleted: true` trước khi đọc nội dung. |
 | 15 | Navigation | Trang được `push` từ danh sách. Back trong dialog đóng dialog. Back ở chi tiết pop route, đưa về danh sách môn đã mở trước đó. |
-| 16 | Data passing | Constructor `_SubjectRoadmap({required database, required subject})` nhận đối tượng môn. `watchRoadmap(widget.subject.id)` dùng ID; `AppBar` dùng tên trong đối tượng đã truyền. |
-| 17 | Local storage | Sau khi nhận kết quả dialog, nhánh mới dùng `saveRoadmapNode`; sửa ghi chú/trạng thái dùng `updateRoadmapProgress`. Khi mở lại chi tiết, builder lấy dữ liệu đã ghi từ Drift. |
-| 18 | Nợ kỹ thuật | Dựng cây đệ quy cho toàn bộ phần đang mở và chứa logic dialog dài. Khi mở rộng, tách cây đã làm phẳng, widget dòng và form. Backend Roadmap kiểm tra cha trực tiếp nhưng chưa duyệt toàn bộ tổ tiên như Mindmap. |
-| 19 | Live-code xác nhận | Sau khi dialog trả kết quả hợp lệ và trước khi ghi, mở xác nhận trong `_editNode`. Nếu hủy, thoát trước `saveRoadmapNode/updateRoadmapProgress`. |
-| 20 | Async/await | Nếu bỏ `await updateRoadmapProgress`, `try/catch` không giữ được lỗi từ Future và hàm kết thúc trước khi ghi xong. Guard `mounted` sau dialog bảo vệ State đã bị pop. |
-| 21 | Thử làm hỏng | Tạm bỏ `isSynced: const Value(false)` trong `updateRoadmapProgress`. Dự kiến UI local đổi, nhưng nhánh đã đồng bộ bị bỏ qua khi push. Khôi phục cờ và thử sửa một nhánh đã sync. |
+| 16 | Data passing | Route nhận môn ban đầu và database. `watchSubject` cập nhật tên trên AppBar, `watchRoadmap` lấy cây theo ID môn. |
+| 17 | Local storage | `deleteRoadmapNode` lưu lệnh xóa và đưa con trực tiếp lên gốc trong cùng giao dịch. Đồng bộ bỏ lệnh sau khi server xác nhận. |
+| 18 | Nợ kỹ thuật | Form loại nhánh đang sửa và hậu duệ khỏi danh sách cha. Drift và backend kiểm tra tổ tiên để ngăn vòng lặp khi lưu. |
+| 19 | Live-code xác nhận | Xóa một nhánh có con và kiểm tra nhánh con chuyển lên gốc. Hủy hộp thoại thì cây giữ nguyên. |
+| 20 | Async/await | `_editNode` chờ `saveRoadmapEdit` để bắt lỗi ghi. Guard `mounted` bảo vệ State nếu route đã đóng. |
+| 21 | Thử làm hỏng | Thử gửi `PUT` với `parentId` là một hậu duệ của nhánh. Server trả `400` với mã `01207`. |
 | 22 | Live-code debounce | Gõ ghi chú chỉ đổi biến trong form. Nếu thêm tìm chủ đề, dùng debounce 500 ms cho query tìm; giữ Save là thao tác xác nhận ghi. |
-| 23 | Auth/session | Chi tiết đọc local. Lúc đồng bộ, GET theo môn và PUT nhánh đính kèm Bearer; backend kiểm tra môn/cha thuộc tài khoản. Lỗi 401 báo ở Shell, không pop route tự động. |
+| 23 | Auth/session | Chi tiết đọc local. Khi đồng bộ, các API GET, PUT và DELETE kiểm tra JWT, quyền sở hữu và môn của nhánh. |
 | 24 | Bộ nhớ | `StreamBuilder` hủy đăng ký khi route pop. `_collapsed` nằm trong State và được thu gom cùng State. Màn này không tạo Timer hay controller ngoài form. |
 | 25 | Pagination | Phân trang theo môn với thứ tự ổn định `sortOrder,id`. Với cây, cân nhắc tải gốc trước và tải con khi mở, hoặc ghép mọi trang theo `parentId` trước khi render. Tiến độ toàn môn cần tổng đếm riêng. |
 
@@ -216,31 +216,31 @@ Tài liệu đi theo 25 câu hỏi cho mỗi trang. **Lộ trình** được chi
 
 | # | Chủ đề | Câu trả lời |
 | --- | --- | --- |
-| 01 | Blind-test UI | `Center → ConstrainedBox → Card → Column` chứa icon, `Wrap` của `ChoiceChip`, đồng hồ, nút chạy và nút đặt lại. Đổi icon đầu thẻ ở `Icons.spa_outlined`; màu nằm ngay trong `Icon.color`. |
-| 02 | Tối ưu layout | Có ba thời lượng cố định nên dùng `Wrap` thay vì danh sách cuộn. `ListView.builder` phù hợp cho lịch sử phiên nếu sau này bổ sung. |
-| 03 | Overflow | `Wrap` giúp chip xuống hàng. Đồng hồ dùng cỡ chữ 78 và Card padding 34 px, toàn trang không có vùng cuộn. Ở màn hình thấp, hẹp hoặc text scale lớn vẫn có nguy cơ tràn. |
-| 04 | Responsive | Card giới hạn rộng 620 px. Xoay ngang có thể giảm chiều cao dù chiều rộng tăng. Có thể dùng `LayoutBuilder` để giảm cỡ đồng hồ hoặc đặt nội dung trong vùng cuộn khi không đủ cao. |
-| 05 | Nguồn dữ liệu và lỗi | Đồng hồ lấy từ `_seconds/_duration/_running` và `Timer.periodic`; không đọc SQLite hay API. `_start` gọi `NotificationService.schedule` và chưa xử lý lỗi plugin. Mất mạng không ảnh hưởng bộ đếm; lỗi sync thuộc Shell. |
-| 06 | Lifecycle | State khởi tạo 25 phút. Timer được tạo khi Bắt đầu và hủy ở `dispose`, Tạm dừng hoặc Đặt lại. Nếu quên hủy lúc dispose, callback có thể giữ State và gọi `setState` sau khi màn hình bị gỡ. |
-| 07 | UI tree | Phần lớn giao diện nằm trong một `build`; logic đã tách thành `_choose/_start/_pause` và getter `_clock`. Tách đồng hồ thành widget con hữu ích khi bộ đếm có state hoặc listener riêng. |
-| 08 | Tương tác | `FilledButton.onPressed` chọn `_start` hoặc `_pause` dựa trên `_running`. Chip gọi `_choose(minutes)`. Nút **Đặt lại** có callback nội tuyến. |
-| 09 | Theme | Tiêu đề dùng `textTheme.headlineSmall`; Button và chip dùng Material. Màu icon và kiểu chữ đồng hồ đặt trực tiếp. `FontFeature.tabularFigures()` yêu cầu chữ số có chiều rộng đều nếu font hỗ trợ. |
-| 10 | Data flow | **Bắt đầu** → `_running = true` → lên lịch thông báo → Timer giảm `_seconds` mỗi tick qua `setState` → getter `_clock` tạo chuỗi mới → UI cập nhật. |
+| 01 | Blind-test UI | `Center → SingleChildScrollView → ConstrainedBox → Card` chứa mốc nhanh, đồng hồ và các nút điều khiển. Chạm đồng hồ để mở bộ chọn. |
+| 02 | Tối ưu layout | `Wrap` xếp năm mốc nhanh và tự xuống hàng. `CupertinoPicker.builder` dựng các giá trị giờ, phút, giây theo nhu cầu. |
+| 03 | Overflow | Màn hình cuộn khi thiếu chiều cao. Đồng hồ dùng `FittedBox` để co chữ khi thiếu chiều ngang. Hộp thoại có ba cột co theo chiều rộng. |
+| 04 | Responsive | Card giới hạn rộng 560 px. Các bánh cuộn nhận thao tác vuốt, lăn chuột hoặc kéo bằng chuột. |
+| 05 | Nguồn dữ liệu và lỗi | Đồng hồ đọc `_remaining`, `_duration` và `_running` trong State. `_updateNotification` xử lý lỗi plugin để bộ đếm vẫn chạy. |
+| 06 | Lifecycle | Mặc định 30 phút. **Bắt đầu** tạo Timer. **Tạm dừng**, **Đặt lại**, hết giờ và `dispose` hủy Timer. |
+| 07 | UI tree | `_FocusDurationDialog` có ba `_DurationWheel`, mỗi cột chứa một `CupertinoPicker`. Dialog trả tổng số giây khi bấm **Áp dụng**. |
+| 08 | Tương tác | Chip chọn 10, 15, 20, 30 phút hoặc 1 giờ. Chạm đồng hồ để đặt giờ, phút, giây. Khi đang đếm, có thể tạm dừng hoặc đặt lại trước khi chọn thời lượng mới. |
+| 09 | Theme | Tiêu đề và icon dùng theme Material. Đồng hồ dùng `FontFeature.tabularFigures()` để các chữ số có chiều rộng đều nếu font hỗ trợ. |
+| 10 | Data flow | **Bắt đầu** tạo Timer và gửi yêu cầu đặt thông báo. Mỗi tick tính số giây còn lại từ số tick của Timer, rồi `_clockLabel` tạo chuỗi `HH:mm:ss`. |
 | 11 | State | Dùng `setState` cục bộ. Nếu cần hiển thị đồng hồ ở nhiều tab hoặc duy trì qua thay đổi bố cục, đưa thời điểm kết thúc và trạng thái vào controller do AppShell hoặc app gốc sở hữu. |
-| 12 | Impact | Thêm chip 90 phút chỉ sửa danh sách trong `Wrap`. Nếu thêm lịch sử phiên, thiết kế model/SQLite và query, ghi khi hoàn tất, rồi dựng UI. Thêm API/server schema nếu lịch sử cần đồng bộ. |
+| 12 | Impact | Mốc nhanh nằm trong `_presets` theo phút. Bộ chọn tùy chỉnh trả thời lượng từ 1 giây đến 23 giờ 59 phút 59 giây. |
 | 13 | Rebuild | Mỗi tick dựng lại `FocusScreen.build`; tách widget bằng hàm chưa đủ để cô lập. Có thể dùng `ValueListenableBuilder` chỉ quanh đồng hồ và theo dõi số lần build trước/sau. |
 | 14 | Null safety và JSON | Trang không parse JSON. `Timer?` được xử lý bằng `?.cancel()`. Nếu thêm DTO lịch sử, xác định trường thời lượng bắt buộc và cách xử lý trường tùy chọn trong parser riêng. |
 | 15 | Navigation | Tab Tập trung không dùng `push`. Khi chuyển tab trong cùng `IndexedStack`, State tiếp tục tồn tại. Khi State bị gỡ khỏi cây, `dispose` hủy Timer. |
-| 16 | Data passing | `FocusScreen({required notifications})` nhận `NotificationService` từ Shell. Thời lượng nằm trong State và truyền từ chip đến `_choose`. |
+| 16 | Data passing | Shell truyền `NotificationService` qua constructor. Chip hoặc dialog chuyển thời lượng theo giây cho `_choose`. |
 | 17 | Local storage | Bộ đếm lưu trong bộ nhớ. Plugin lên lịch một thông báo theo thời điểm kết thúc; app không đọc thông báo đó để khôi phục đồng hồ khi mở lại. |
-| 18 | Nợ kỹ thuật | `_start` đợi lên lịch thông báo rồi mới tạo Timer, thiếu kiểm tra `mounted` và có thể đua với Tạm dừng/Đặt lại. Có thể lưu mốc kết thúc, tách việc đặt nhắc, xử lý lỗi và tính số giây còn lại từ mốc thay vì đếm tick. |
-| 19 | Live-code xác nhận | Bọc callback **Đặt lại** bằng `confirmAction(context)`. Chỉ khi đồng ý và State còn mounted mới hủy Timer/thông báo và gán `_seconds = _duration * 60`. |
-| 20 | Async/await | Bỏ `await schedule` cho Timer chạy trước khi biết việc đặt nhắc thành công, và lỗi cần được xử lý riêng. Nếu giữ await, kiểm tra `mounted` và trạng thái phiên chạy trước khi tạo Timer mới. |
+| 18 | Nợ kỹ thuật | Timer chạy độc lập với plugin. Các yêu cầu đặt và hủy thông báo được thực hiện theo thứ tự, kể cả khi thao tác liên tiếp. |
+| 19 | Live-code xác nhận | Đặt thời lượng tùy chỉnh, bắt đầu rồi tạm dừng. Bấm **Đặt lại** để kiểm tra đồng hồ trở về thời lượng đã chọn. |
+| 20 | Async/await | `_updateNotification` xếp yêu cầu vào một chuỗi Future. Lỗi đặt hoặc hủy thông báo được xử lý trong từng yêu cầu. |
 | 21 | Thử làm hỏng | Tạm bỏ `_timer?.cancel()` trong `dispose`. Dự kiến chạy đồng hồ rồi đăng xuất có thể gây `setState() called after dispose()` ở tick kế tiếp. Khôi phục cancel và thử lại. |
 | 22 | Live-code debounce | Chọn chip hiện xử lý ngay, không gọi API. Nếu bổ sung ô tìm lịch sử phiên, gắn debounce 500 ms cho ô tìm; giữ các thao tác Bắt đầu/Tạm dừng tức thời. |
 | 23 | Auth/session | Bộ đếm chạy cả khi offline. Trang không gửi token; nếu sau này đồng bộ lịch sử thì dùng `ApiClient` chung và chính sách 401 tập trung. |
 | 24 | Bộ nhớ | Bằng chứng hủy Dart Timer nằm trong `dispose`. Thông báo OS được hủy ở Tạm dừng/Đặt lại; `dispose` chỉ hủy Timer. Dùng widget test với đồng hồ giả để kiểm tra không còn tick sau khi gỡ widget. |
-| 25 | Pagination | Ba chip và đồng hồ không cần phân trang. Nếu thêm lịch sử, dùng danh sách riêng theo cursor `endedAt,id` và trạng thái tải thêm. Giữ timer hiện tại tách khỏi state lịch sử. |
+| 25 | Pagination | Mốc nhanh và đồng hồ không cần phân trang. Ba bánh cuộn dựng giá trị bằng builder. |
 
 ## Mẫu live-code và cách kiểm chứng
 

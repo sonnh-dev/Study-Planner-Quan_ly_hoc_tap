@@ -7,8 +7,7 @@ Các endpoint nghiệp vụ dùng đường dẫn bắt đầu bằng `/api`. B�
 | Môi trường | Backend | `API_BASE_URL` cho Flutter |
 | --- | --- | --- |
 | Windows và Flutter Web | `http://localhost:8080` | `http://localhost:8080/api` |
-| Android Emulator | `http://10.0.2.2:8080` | `http://10.0.2.2:8080/api` |
-| Điện thoại thật | `http://<IP-LAN-của-backend>:8080` | `http://<IP-LAN-của-backend>:8080/api` |
+| Android khi phát triển qua ADB | `http://localhost:8080` qua `adb reverse tcp:8080 tcp:8080` | `http://localhost:8080/api` |
 
 Flutter Web phục vụ giao diện ở `http://localhost:8386`. Backend mặc định cho phép CORS từ `http://localhost:8386` và `http://127.0.0.1:8386`. `APP_CORS_ORIGINS` cấu hình danh sách này. [Hướng dẫn chạy](../README.md) · [HTTP client](../frontend/lib/data/api_client.dart) · [Cấu hình Spring Boot](../backend/src/main/resources/application.yml)
 
@@ -25,19 +24,23 @@ Flutter Web phục vụ giao diện ở `http://localhost:8386`. Backend mặc �
 | --- | --- | --- |
 | `POST /api/auth/register` | `AuthRequest` | `{ token, email }` |
 | `POST /api/auth/login` | `AuthRequest` | `{ token, email }` |
-| `GET /api/subjects` | — | Mảng `Subject`, sắp theo tên |
+| `GET /api/subjects` | — | Mảng `Subject` chưa xóa, sắp theo tên. Thêm `?includeDeleted=true` để đồng bộ cả mục đã xóa |
 | `PUT /api/subjects/{id}` | `SubjectRequest` | `Subject` đã lưu |
+| `DELETE /api/subjects/{id}` | — | Đánh dấu xóa môn và ẩn lộ trình, Mindmap của môn |
 | `GET /api/events` | — | Mảng `StudyEvent` chưa xóa, sắp theo giờ bắt đầu |
 | `GET /api/events?includeDeleted=true` | — | Mảng `StudyEvent` gồm cả lịch đã xóa, dùng khi đồng bộ |
 | `PUT /api/events/{id}` | `EventRequest` | `StudyEvent` đã lưu |
 | `DELETE /api/events/{id}` | — | Phản hồi thành công với `result` được lược bỏ |
-| `GET /api/subjects/{subjectId}/roadmap` | — | Mảng `RoadmapNode`, sắp theo `sortOrder` |
+| `GET /api/subjects/{subjectId}/roadmap` | — | Mảng `RoadmapNode` chưa xóa, sắp theo `sortOrder`. Thêm `?includeDeleted=true` để đồng bộ cả nhánh đã xóa |
 | `PUT /api/roadmap/{id}` | `RoadmapRequest` | `RoadmapNode` đã lưu |
+| `DELETE /api/subjects/{subjectId}/roadmap/{id}` | — | Đánh dấu xóa nhánh và đưa các nhánh con trực tiếp lên gốc |
 | `GET /api/subjects/{subjectId}/mindmap` | — | Mảng `MindmapNode` của môn |
 | `PUT /api/mindmap/{id}` | `MindmapRequest` | `MindmapNode` đã lưu |
 | `DELETE /api/subjects/{subjectId}/mindmap/{id}` | — | Phản hồi thành công với `result` được lược bỏ |
 
-`id` trên URL, `subjectId` và `parentId` là UUID. `PUT` tạo hoặc cập nhật theo ID. Gửi `parentId: null` hoặc bỏ trường để lưu node gốc. Nhánh cha phải cùng môn và cùng tài khoản. Mindmap kiểm tra vòng lặp, giữ thẻ trong môn ban đầu và đưa thẻ về gốc khi cha trực tiếp đã bị xóa.
+`id` trên URL, `subjectId` và `parentId` là UUID. `PUT` tạo hoặc cập nhật theo ID. Gửi `parentId: null` hoặc bỏ trường để lưu node gốc. Nhánh cha phải cùng môn và cùng tài khoản. Lộ trình và Mindmap kiểm tra vòng lặp, giữ node trong môn ban đầu và đưa node về gốc khi cha trực tiếp đã bị xóa.
+
+Lệnh xóa môn hoặc nhánh lộ trình có thể gửi lại và trả HTTP `200` với `errorCode = "00000"`. Chỉ chủ sở hữu có thể xóa dữ liệu. API Lộ trình và Mindmap của môn đã xóa trả `404` với mã `01203`.
 
 Lệnh `DELETE /api/events/{id}` đánh dấu xóa mềm lịch của tài khoản hiện tại. Yêu cầu gửi lại, ID chưa tồn tại hoặc ID thuộc tài khoản khác đều trả HTTP `200` và `errorCode = "00000"`. Nếu gửi `PUT` cho lịch của mình đã xóa, server trả HTTP `410` với mã `01211`.
 
@@ -58,9 +61,9 @@ Server bỏ khoảng trắng đầu cuối và chuyển email thành chữ thư�
 | Đối tượng trong `result` | Các trường |
 | --- | --- |
 | Phiên xác thực | `token`, `email` |
-| `Subject` | `id`, `name`, `color`, `updatedAt` |
+| `Subject` | `id`, `name`, `color`, `updatedAt`, `deleted` (boolean) |
 | `StudyEvent` | `id`, `title`, `details`, `startsAt`, `endsAt`, `reminderAt`, `deleted` (boolean) |
-| `RoadmapNode` | `id`, `subjectId`, `parentId`, `title`, `note`, `status`, `sortOrder`, `dueAt` |
+| `RoadmapNode` | `id`, `subjectId`, `parentId`, `title`, `note`, `status`, `sortOrder`, `dueAt`, `deleted` (boolean) |
 | `MindmapNode` | `id`, `subjectId`, `parentId`, `title`, `content`, `x`, `y` |
 
 [Auth](../backend/src/main/java/com/duy/studyplanner/api/auth/AuthController.java) · [Môn học](../backend/src/main/java/com/duy/studyplanner/api/subject/SubjectController.java) · [Lịch học](../backend/src/main/java/com/duy/studyplanner/api/event/StudyEventController.java) · [Lộ trình](../backend/src/main/java/com/duy/studyplanner/api/roadmap/RoadmapController.java) · [Mindmap](../backend/src/main/java/com/duy/studyplanner/api/mindmap/MindmapController.java)
@@ -85,7 +88,7 @@ JSON do controller trả có thể bỏ các trường `null`. Phản hồi lỗ
 | `400` | `00101` | Dữ liệu vi phạm validation hoặc tham số URL sai kiểu, ví dụ `includeDeleted=abc` |
 | `400` | `01102` | Giờ kết thúc lịch không sau giờ bắt đầu |
 | `400` | `01103` | Trạng thái lộ trình sai |
-| `400` | `01207` | Nhánh cha khác môn hoặc trùng nhánh đang lưu |
+| `400` | `01207` | Nhánh cha khác môn hoặc liên kết tạo vòng lặp |
 | `400` | `01209` | Liên kết Mindmap khác môn hoặc tạo vòng lặp |
 | `401` | `00001` | Thiếu JWT hợp lệ trên endpoint yêu cầu đăng nhập |
 | `401` | `01202` | Sai email hoặc mật khẩu |
@@ -93,11 +96,13 @@ JSON do controller trả có thể bỏ các trường `null`. Phản hồi lỗ
 | `403` | `00002` | Spring Security từ chối quyền truy cập |
 | `404` | `01203` | Không tìm thấy môn trong tài khoản |
 | `404` | `01205` | Gửi cập nhật cho ID lịch thuộc tài khoản khác |
-| `404` | `01206` | ID nhánh lộ trình thuộc tài khoản khác hoặc không tìm thấy nhánh cha |
+| `404` | `01206` | Nhánh lộ trình thuộc tài khoản hoặc môn khác, hoặc không tìm thấy nhánh cha |
 | `404` | `01208` | ID thẻ không thuộc tài khoản hoặc môn yêu cầu, hoặc không tìm thấy thẻ cha |
 | `409` | `01201` | Email đã đăng ký |
 | `410` | `01210` | Gửi cập nhật cho thẻ Mindmap đã xóa |
 | `410` | `01211` | Gửi cập nhật cho lịch học đã xóa |
+| `410` | `01212` | Gửi cập nhật cho môn đã xóa |
+| `410` | `01213` | Gửi cập nhật cho nhánh lộ trình đã xóa |
 | `500` | `00499` | Lỗi do bộ xử lý ngoại lệ chung tiếp nhận |
 
 [Cấu trúc phản hồi](../backend/src/main/java/com/duy/studyplanner/api/common/ApiResponse.java) · [Xử lý lỗi](../backend/src/main/java/com/duy/studyplanner/api/common/GlobalExceptionHandler.java)

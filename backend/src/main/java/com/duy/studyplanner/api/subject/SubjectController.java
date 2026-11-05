@@ -10,11 +10,14 @@ import java.util.List;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -29,28 +32,41 @@ public class SubjectController {
     }
 
     @GetMapping
-    ApiResponse<List<SubjectResponse>> list(@AuthenticationPrincipal String email) {
+    ApiResponse<List<SubjectResponse>> list(@AuthenticationPrincipal String email,
+            @RequestParam(name = "includeDeleted", defaultValue = "false") boolean includeDeleted) {
         UUID userId = userId(email);
-        return ApiResponse.success(subjects.findAllByUserIdOrderByName(userId).stream()
-                .map(SubjectResponse::from).toList());
+        var rows = includeDeleted ? subjects.findAllByUserIdOrderByName(userId)
+                : subjects.findAllByUserIdAndDeletedFalseOrderByName(userId);
+        return ApiResponse.success(rows.stream().map(SubjectResponse::from).toList());
     }
 
     @PutMapping("/{id}")
+    @Transactional
     ApiResponse<SubjectResponse> upsert(
             @AuthenticationPrincipal String email,
             @PathVariable UUID id,
             @Valid @RequestBody SubjectRequest request) {
         UUID userId = userId(email);
-        SubjectEntity subject = subjects.findById(id)
+        SubjectEntity subject = subjects.lockById(id)
                 .map(existing -> {
                     if (!existing.getUserId().equals(userId)) {
                         throw new ApiException("01203", "Subject not found", HttpStatus.NOT_FOUND);
+                    }
+                    if (existing.isDeleted()) {
+                        throw new ApiException("01212", "Subject was deleted", HttpStatus.GONE);
                     }
                     existing.update(request.name().trim(), request.color());
                     return existing;
                 })
                 .orElseGet(() -> new SubjectEntity(id, userId, request.name().trim(), request.color()));
-        return ApiResponse.success(SubjectResponse.from(subjects.save(subject)));
+        return ApiResponse.success(SubjectResponse.from(subjects.saveAndFlush(subject)));
+    }
+
+    @DeleteMapping("/{id}")
+    @Transactional
+    ApiResponse<Void> delete(@AuthenticationPrincipal String email, @PathVariable UUID id) {
+        subjects.lockByIdAndUserId(id, userId(email)).ifPresent(SubjectEntity::markDeleted);
+        return ApiResponse.success(null);
     }
 
     private UUID userId(String email) {
@@ -60,9 +76,10 @@ public class SubjectController {
     }
 
     public record SubjectRequest(@NotBlank @Size(max = 120) String name, @NotBlank @Size(max = 20) String color) {}
-    public record SubjectResponse(UUID id, String name, String color, String updatedAt) {
+    public record SubjectResponse(UUID id, String name, String color, String updatedAt, boolean deleted) {
         static SubjectResponse from(SubjectEntity subject) {
-            return new SubjectResponse(subject.getId(), subject.getName(), subject.getColor(), subject.getUpdatedAt().toString());
+            return new SubjectResponse(subject.getId(), subject.getName(), subject.getColor(),
+                    subject.getUpdatedAt().toString(), subject.isDeleted());
         }
     }
 }

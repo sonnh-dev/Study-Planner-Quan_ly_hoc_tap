@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:studyplaner/data/app_database.dart';
 import 'package:studyplaner/data/notification_service.dart';
 import 'package:studyplaner/util/id.dart';
+import 'package:studyplaner/data/sync_service.dart';
 
 const _weekdays = [
   'Thứ hai',
@@ -118,7 +119,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
     try {
       await database.transaction(() async {
         if (event == null) {
-          await database.deleteEvent(id);
+          await SyncService.database.deleteEvent(id);
         } else if (previous == null) {
           await database.saveEvent(event);
         } else {

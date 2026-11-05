@@ -6,16 +6,11 @@ class ApiClient {
   ApiClient({http.Client? client}) : _client = client ?? http.Client();
   final http.Client _client;
   String? token;
-  static const baseUrl = String.fromEnvironment(
-    'API_BASE_URL',
-    defaultValue: 'http://localhost:8080/api',
-  );
+  static const baseUrl = String.fromEnvironment('API_BASE_URL', defaultValue: 'http://localhost:8080/api',);
   Uri _uri(String path) => Uri.parse('$baseUrl$path');
   Future<Map<String, dynamic>> get(String path) => _request('GET', path);
-  Future<Map<String, dynamic>> post(String path, Map<String, Object?> body) =>
-      _request('POST', path, body);
-  Future<Map<String, dynamic>> put(String path, Map<String, Object?> body) =>
-      _request('PUT', path, body);
+  Future<Map<String, dynamic>> post(String path, Map<String, Object?> body) => _request('POST', path, body);
+  Future<Map<String, dynamic>> put(String path, Map<String, Object?> body) => _request('PUT', path, body);
   Future<Map<String, dynamic>> delete(String path) => _request('DELETE', path);
 
   Future<Map<String, dynamic>> _request(
@@ -32,11 +27,7 @@ class ApiClient {
     final uri = _uri(path);
     final response = switch (method) {
       'GET' => await _client.get(uri, headers: headers),
-      'POST' => await _client.post(
-        uri,
-        headers: headers,
-        body: jsonEncode(body),
-      ),
+      'POST' => await _client.post(uri, headers: headers, body: jsonEncode(body),),
       'PUT' => await _client.put(uri, headers: headers, body: jsonEncode(body)),
       'DELETE' => await _client.delete(uri, headers: headers),
       _ => throw UnsupportedError('Unsupported method: $method'),

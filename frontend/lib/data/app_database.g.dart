@@ -2182,6 +2182,372 @@ class StudyEventDeletionsCompanion extends UpdateCompanion<StudyEventDeletion> {
   }
 }
 
+class $SubjectDeletionsTable extends SubjectDeletions
+    with TableInfo<$SubjectDeletionsTable, SubjectDeletion> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $SubjectDeletionsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [id];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'subject_deletions';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<SubjectDeletion> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  SubjectDeletion map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return SubjectDeletion(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+    );
+  }
+
+  @override
+  $SubjectDeletionsTable createAlias(String alias) {
+    return $SubjectDeletionsTable(attachedDatabase, alias);
+  }
+}
+
+class SubjectDeletion extends DataClass implements Insertable<SubjectDeletion> {
+  final String id;
+  const SubjectDeletion({required this.id});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    return map;
+  }
+
+  SubjectDeletionsCompanion toCompanion(bool nullToAbsent) {
+    return SubjectDeletionsCompanion(id: Value(id));
+  }
+
+  factory SubjectDeletion.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return SubjectDeletion(id: serializer.fromJson<String>(json['id']));
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{'id': serializer.toJson<String>(id)};
+  }
+
+  SubjectDeletion copyWith({String? id}) => SubjectDeletion(id: id ?? this.id);
+  SubjectDeletion copyWithCompanion(SubjectDeletionsCompanion data) {
+    return SubjectDeletion(id: data.id.present ? data.id.value : this.id);
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SubjectDeletion(')
+          ..write('id: $id')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => id.hashCode;
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is SubjectDeletion && other.id == this.id);
+}
+
+class SubjectDeletionsCompanion extends UpdateCompanion<SubjectDeletion> {
+  final Value<String> id;
+  final Value<int> rowid;
+  const SubjectDeletionsCompanion({
+    this.id = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  SubjectDeletionsCompanion.insert({
+    required String id,
+    this.rowid = const Value.absent(),
+  }) : id = Value(id);
+  static Insertable<SubjectDeletion> custom({
+    Expression<String>? id,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  SubjectDeletionsCompanion copyWith({Value<String>? id, Value<int>? rowid}) {
+    return SubjectDeletionsCompanion(
+      id: id ?? this.id,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SubjectDeletionsCompanion(')
+          ..write('id: $id, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $RoadmapDeletionsTable extends RoadmapDeletions
+    with TableInfo<$RoadmapDeletionsTable, RoadmapDeletion> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $RoadmapDeletionsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _subjectIdMeta = const VerificationMeta(
+    'subjectId',
+  );
+  @override
+  late final GeneratedColumn<String> subjectId = GeneratedColumn<String>(
+    'subject_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [id, subjectId];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'roadmap_deletions';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<RoadmapDeletion> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('subject_id')) {
+      context.handle(
+        _subjectIdMeta,
+        subjectId.isAcceptableOrUnknown(data['subject_id']!, _subjectIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_subjectIdMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  RoadmapDeletion map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return RoadmapDeletion(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      subjectId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}subject_id'],
+      )!,
+    );
+  }
+
+  @override
+  $RoadmapDeletionsTable createAlias(String alias) {
+    return $RoadmapDeletionsTable(attachedDatabase, alias);
+  }
+}
+
+class RoadmapDeletion extends DataClass implements Insertable<RoadmapDeletion> {
+  final String id;
+  final String subjectId;
+  const RoadmapDeletion({required this.id, required this.subjectId});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['subject_id'] = Variable<String>(subjectId);
+    return map;
+  }
+
+  RoadmapDeletionsCompanion toCompanion(bool nullToAbsent) {
+    return RoadmapDeletionsCompanion(
+      id: Value(id),
+      subjectId: Value(subjectId),
+    );
+  }
+
+  factory RoadmapDeletion.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return RoadmapDeletion(
+      id: serializer.fromJson<String>(json['id']),
+      subjectId: serializer.fromJson<String>(json['subjectId']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'subjectId': serializer.toJson<String>(subjectId),
+    };
+  }
+
+  RoadmapDeletion copyWith({String? id, String? subjectId}) => RoadmapDeletion(
+    id: id ?? this.id,
+    subjectId: subjectId ?? this.subjectId,
+  );
+  RoadmapDeletion copyWithCompanion(RoadmapDeletionsCompanion data) {
+    return RoadmapDeletion(
+      id: data.id.present ? data.id.value : this.id,
+      subjectId: data.subjectId.present ? data.subjectId.value : this.subjectId,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('RoadmapDeletion(')
+          ..write('id: $id, ')
+          ..write('subjectId: $subjectId')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, subjectId);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is RoadmapDeletion &&
+          other.id == this.id &&
+          other.subjectId == this.subjectId);
+}
+
+class RoadmapDeletionsCompanion extends UpdateCompanion<RoadmapDeletion> {
+  final Value<String> id;
+  final Value<String> subjectId;
+  final Value<int> rowid;
+  const RoadmapDeletionsCompanion({
+    this.id = const Value.absent(),
+    this.subjectId = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  RoadmapDeletionsCompanion.insert({
+    required String id,
+    required String subjectId,
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       subjectId = Value(subjectId);
+  static Insertable<RoadmapDeletion> custom({
+    Expression<String>? id,
+    Expression<String>? subjectId,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (subjectId != null) 'subject_id': subjectId,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  RoadmapDeletionsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? subjectId,
+    Value<int>? rowid,
+  }) {
+    return RoadmapDeletionsCompanion(
+      id: id ?? this.id,
+      subjectId: subjectId ?? this.subjectId,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (subjectId.present) {
+      map['subject_id'] = Variable<String>(subjectId.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('RoadmapDeletionsCompanion(')
+          ..write('id: $id, ')
+          ..write('subjectId: $subjectId, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -2194,6 +2560,12 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   );
   late final $StudyEventDeletionsTable studyEventDeletions =
       $StudyEventDeletionsTable(this);
+  late final $SubjectDeletionsTable subjectDeletions = $SubjectDeletionsTable(
+    this,
+  );
+  late final $RoadmapDeletionsTable roadmapDeletions = $RoadmapDeletionsTable(
+    this,
+  );
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -2205,6 +2577,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     mindmapNodes,
     mindmapDeletions,
     studyEventDeletions,
+    subjectDeletions,
+    roadmapDeletions,
   ];
 }
 
@@ -3488,6 +3862,289 @@ typedef $$StudyEventDeletionsTableProcessedTableManager =
       StudyEventDeletion,
       PrefetchHooks Function()
     >;
+typedef $$SubjectDeletionsTableCreateCompanionBuilder =
+    SubjectDeletionsCompanion Function({required String id, Value<int> rowid});
+typedef $$SubjectDeletionsTableUpdateCompanionBuilder =
+    SubjectDeletionsCompanion Function({Value<String> id, Value<int> rowid});
+
+class $$SubjectDeletionsTableFilterComposer
+    extends Composer<_$AppDatabase, $SubjectDeletionsTable> {
+  $$SubjectDeletionsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$SubjectDeletionsTableOrderingComposer
+    extends Composer<_$AppDatabase, $SubjectDeletionsTable> {
+  $$SubjectDeletionsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$SubjectDeletionsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $SubjectDeletionsTable> {
+  $$SubjectDeletionsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+}
+
+class $$SubjectDeletionsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $SubjectDeletionsTable,
+          SubjectDeletion,
+          $$SubjectDeletionsTableFilterComposer,
+          $$SubjectDeletionsTableOrderingComposer,
+          $$SubjectDeletionsTableAnnotationComposer,
+          $$SubjectDeletionsTableCreateCompanionBuilder,
+          $$SubjectDeletionsTableUpdateCompanionBuilder,
+          (
+            SubjectDeletion,
+            BaseReferences<
+              _$AppDatabase,
+              $SubjectDeletionsTable,
+              SubjectDeletion
+            >,
+          ),
+          SubjectDeletion,
+          PrefetchHooks Function()
+        > {
+  $$SubjectDeletionsTableTableManager(
+    _$AppDatabase db,
+    $SubjectDeletionsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$SubjectDeletionsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$SubjectDeletionsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$SubjectDeletionsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<String> id = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) => SubjectDeletionsCompanion(id: id, rowid: rowid),
+          createCompanionCallback: ({
+            required String id,
+            Value<int> rowid = const Value.absent(),
+          }) => SubjectDeletionsCompanion.insert(id: id, rowid: rowid),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$SubjectDeletionsTable, SubjectDeletion>(table),
+                  BaseReferences<
+                    _$AppDatabase,
+                    $SubjectDeletionsTable,
+                    SubjectDeletion
+                  >(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$SubjectDeletionsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $SubjectDeletionsTable,
+      SubjectDeletion,
+      $$SubjectDeletionsTableFilterComposer,
+      $$SubjectDeletionsTableOrderingComposer,
+      $$SubjectDeletionsTableAnnotationComposer,
+      $$SubjectDeletionsTableCreateCompanionBuilder,
+      $$SubjectDeletionsTableUpdateCompanionBuilder,
+      (
+        SubjectDeletion,
+        BaseReferences<_$AppDatabase, $SubjectDeletionsTable, SubjectDeletion>,
+      ),
+      SubjectDeletion,
+      PrefetchHooks Function()
+    >;
+typedef $$RoadmapDeletionsTableCreateCompanionBuilder =
+    RoadmapDeletionsCompanion Function({
+      required String id,
+      required String subjectId,
+      Value<int> rowid,
+    });
+typedef $$RoadmapDeletionsTableUpdateCompanionBuilder =
+    RoadmapDeletionsCompanion Function({
+      Value<String> id,
+      Value<String> subjectId,
+      Value<int> rowid,
+    });
+
+class $$RoadmapDeletionsTableFilterComposer
+    extends Composer<_$AppDatabase, $RoadmapDeletionsTable> {
+  $$RoadmapDeletionsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get subjectId => $composableBuilder(
+    column: $table.subjectId,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$RoadmapDeletionsTableOrderingComposer
+    extends Composer<_$AppDatabase, $RoadmapDeletionsTable> {
+  $$RoadmapDeletionsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get subjectId => $composableBuilder(
+    column: $table.subjectId,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$RoadmapDeletionsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $RoadmapDeletionsTable> {
+  $$RoadmapDeletionsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get subjectId =>
+      $composableBuilder(column: $table.subjectId, builder: (column) => column);
+}
+
+class $$RoadmapDeletionsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $RoadmapDeletionsTable,
+          RoadmapDeletion,
+          $$RoadmapDeletionsTableFilterComposer,
+          $$RoadmapDeletionsTableOrderingComposer,
+          $$RoadmapDeletionsTableAnnotationComposer,
+          $$RoadmapDeletionsTableCreateCompanionBuilder,
+          $$RoadmapDeletionsTableUpdateCompanionBuilder,
+          (
+            RoadmapDeletion,
+            BaseReferences<
+              _$AppDatabase,
+              $RoadmapDeletionsTable,
+              RoadmapDeletion
+            >,
+          ),
+          RoadmapDeletion,
+          PrefetchHooks Function()
+        > {
+  $$RoadmapDeletionsTableTableManager(
+    _$AppDatabase db,
+    $RoadmapDeletionsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$RoadmapDeletionsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$RoadmapDeletionsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$RoadmapDeletionsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> subjectId = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => RoadmapDeletionsCompanion(
+                id: id,
+                subjectId: subjectId,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String subjectId,
+                Value<int> rowid = const Value.absent(),
+              }) => RoadmapDeletionsCompanion.insert(
+                id: id,
+                subjectId: subjectId,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$RoadmapDeletionsTable, RoadmapDeletion>(table),
+                  BaseReferences<
+                    _$AppDatabase,
+                    $RoadmapDeletionsTable,
+                    RoadmapDeletion
+                  >(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$RoadmapDeletionsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $RoadmapDeletionsTable,
+      RoadmapDeletion,
+      $$RoadmapDeletionsTableFilterComposer,
+      $$RoadmapDeletionsTableOrderingComposer,
+      $$RoadmapDeletionsTableAnnotationComposer,
+      $$RoadmapDeletionsTableCreateCompanionBuilder,
+      $$RoadmapDeletionsTableUpdateCompanionBuilder,
+      (
+        RoadmapDeletion,
+        BaseReferences<_$AppDatabase, $RoadmapDeletionsTable, RoadmapDeletion>,
+      ),
+      RoadmapDeletion,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -3504,4 +4161,8 @@ class $AppDatabaseManager {
       $$MindmapDeletionsTableTableManager(_db, _db.mindmapDeletions);
   $$StudyEventDeletionsTableTableManager get studyEventDeletions =>
       $$StudyEventDeletionsTableTableManager(_db, _db.studyEventDeletions);
+  $$SubjectDeletionsTableTableManager get subjectDeletions =>
+      $$SubjectDeletionsTableTableManager(_db, _db.subjectDeletions);
+  $$RoadmapDeletionsTableTableManager get roadmapDeletions =>
+      $$RoadmapDeletionsTableTableManager(_db, _db.roadmapDeletions);
 }

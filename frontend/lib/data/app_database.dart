@@ -64,6 +64,19 @@ class MindmapDeletions extends Table {
   Set<Column<Object>> get primaryKey => {id};
 }
 
+class SubjectDeletions extends Table {
+  TextColumn get id => text()();
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
+class RoadmapDeletions extends Table {
+  TextColumn get id => text()();
+  TextColumn get subjectId => text()();
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
 @DriftDatabase(
   tables: [
     Subjects,
@@ -72,6 +85,8 @@ class MindmapDeletions extends Table {
     MindmapNodes,
     MindmapDeletions,
     StudyEventDeletions,
+    SubjectDeletions,
+    RoadmapDeletions,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -87,13 +102,17 @@ class AppDatabase extends _$AppDatabase {
             ),
       );
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 4;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
     onUpgrade: (migrator, from, to) async {
       if (from < 2) await migrator.createTable(mindmapDeletions);
       if (from < 3) await migrator.createTable(studyEventDeletions);
+      if (from < 4) {
+        await migrator.createTable(subjectDeletions);
+        await migrator.createTable(roadmapDeletions);
+      }
     },
   );
 
@@ -101,6 +120,10 @@ class AppDatabase extends _$AppDatabase {
     subjects,
   )..orderBy([(row) => OrderingTerm.asc(row.name)])).watch();
   Future<List<Subject>> getSubjects() => select(subjects).get();
+  Stream<Subject?> watchSubject(String id) =>
+      (select(subjects)..where((row) => row.id.equals(id))).watchSingleOrNull();
+  Future<Subject?> getSubject(String id) =>
+      (select(subjects)..where((row) => row.id.equals(id))).getSingleOrNull();
   Future<void> saveSubject(Subject row) =>
       into(subjects).insertOnConflictUpdate(
         SubjectsCompanion.insert(
@@ -110,6 +133,38 @@ class AppDatabase extends _$AppDatabase {
           isSynced: Value(row.isSynced),
         ),
       );
+
+  Future<void> updateSubject(Subject row) async {
+    if (!await update(subjects).replace(row)) {
+      throw StateError('Subject no longer exists.');
+    }
+  }
+
+  Future<List<SubjectDeletion>> getSubjectDeletions() =>
+      select(subjectDeletions).get();
+
+  Future<void> acknowledgeSubjectDeletion(String id) async {
+    await (delete(subjectDeletions)..where((row) => row.id.equals(id))).go();
+  }
+
+  Future<void> deleteSubject(
+    String id, {
+    bool queue = true,
+  }) => transaction(() async {
+    if (queue) {
+      await into(subjectDeletions)
+          .insertOnConflictUpdate(SubjectDeletionsCompanion.insert(id: id));
+    }
+    await (delete(
+      roadmapDeletions,
+    )..where((row) => row.subjectId.equals(id))).go();
+    await (delete(
+      mindmapDeletions,
+    )..where((row) => row.subjectId.equals(id))).go();
+    await (delete(roadmapNodes)..where((row) => row.subjectId.equals(id))).go();
+    await (delete(mindmapNodes)..where((row) => row.subjectId.equals(id))).go();
+    await (delete(subjects)..where((row) => row.id.equals(id))).go();
+  });
 
   Stream<List<StudyEvent>> watchEvents() => (select(
     studyEvents,
@@ -187,21 +242,56 @@ class AppDatabase extends _$AppDatabase {
         ),
       );
 
-  Future<void> updateRoadmapProgress(
-    String id, {
-    required String note,
-    required String status,
-  }) async {
-    final count =
-        await (update(roadmapNodes)..where((row) => row.id.equals(id))).write(
-          RoadmapNodesCompanion(
-            note: Value(note),
-            status: Value(status),
-            isSynced: const Value(false),
-          ),
-        );
-    if (count == 0) throw StateError('Roadmap node no longer exists.');
+  Future<void> saveRoadmapEdit(RoadmapNode row, {required bool create}) =>
+      transaction(() async {
+        if (await getSubject(row.subjectId) == null) {
+          throw StateError('Subject no longer exists.');
+        }
+        final visited = {row.id};
+        var parentId = row.parentId;
+        while (parentId != null) {
+          if (!visited.add(parentId)) {
+            throw StateError('Roadmap connection would form a cycle.');
+          }
+          final parent = await getRoadmapNode(parentId);
+          if (parent == null || parent.subjectId != row.subjectId) {
+            throw StateError('Roadmap parent is unavailable.');
+          }
+          parentId = parent.parentId;
+        }
+        final pending = row.copyWith(isSynced: false);
+        if (create) {
+          await into(roadmapNodes).insert(pending);
+        } else if (!await update(roadmapNodes).replace(pending)) {
+          throw StateError('Roadmap node no longer exists.');
+        }
+      });
+
+  Future<List<RoadmapDeletion>> getRoadmapDeletions() =>
+      select(roadmapDeletions).get();
+
+  Future<void> acknowledgeRoadmapDeletion(String id) async {
+    await (delete(roadmapDeletions)..where((row) => row.id.equals(id))).go();
   }
+
+  Future<void> deleteRoadmapNode(
+    String subjectId,
+    String id, {
+    bool queue = true,
+  }) => transaction(() async {
+    if (queue && await getSubject(subjectId) != null) {
+      await into(roadmapDeletions).insertOnConflictUpdate(
+        RoadmapDeletionsCompanion.insert(id: id, subjectId: subjectId),
+      );
+    }
+    await (update(roadmapNodes)..where(
+          (row) => row.subjectId.equals(subjectId) & row.parentId.equals(id),
+        ))
+        .write(const RoadmapNodesCompanion(parentId: Value(null)));
+    await (delete(roadmapNodes)
+          ..where((row) => row.subjectId.equals(subjectId) & row.id.equals(id)))
+        .go();
+  });
 
   Stream<List<MindmapNode>> watchMindmap(String subjectId) => (select(
     mindmapNodes,
@@ -222,7 +312,7 @@ class AppDatabase extends _$AppDatabase {
 
   Future<void> deleteMindmapNode(MindmapNode node, {bool queue = true}) =>
       transaction(() async {
-        if (queue) {
+        if (queue && await getSubject(node.subjectId) != null) {
           await into(mindmapDeletions).insertOnConflictUpdate(
             MindmapDeletionsCompanion.insert(
               id: node.id,
@@ -250,17 +340,19 @@ class AppDatabase extends _$AppDatabase {
     );
   }
 
-  Future<void> saveMindmapNode(MindmapNode row) =>
-      into(mindmapNodes).insertOnConflictUpdate(
-        MindmapNodesCompanion.insert(
-          id: row.id,
-          subjectId: row.subjectId,
-          parentId: Value(row.parentId),
-          title: row.title,
-          content: Value(row.content),
-          x: Value(row.x),
-          y: Value(row.y),
-          isSynced: Value(row.isSynced),
-        ),
-      );
+  Future<void> saveMindmapNode(MindmapNode row) => transaction(() async {
+    if (await getSubject(row.subjectId) == null) return;
+    await into(mindmapNodes).insertOnConflictUpdate(
+      MindmapNodesCompanion.insert(
+        id: row.id,
+        subjectId: row.subjectId,
+        parentId: Value(row.parentId),
+        title: row.title,
+        content: Value(row.content),
+        x: Value(row.x),
+        y: Value(row.y),
+        isSynced: Value(row.isSynced),
+      ),
+    );
+  });
 }

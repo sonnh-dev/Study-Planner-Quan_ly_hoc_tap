@@ -10,7 +10,17 @@ Install Flutter, then from this directory:
     dart run build_runner build --delete-conflicting-outputs
     flutter run -d windows --dart-define=API_BASE_URL=http://localhost:8080/api
 
-For Android Emulator, use `http://10.0.2.2:8080/api`. For Flutter Web, run `flutter run -d edge` or `flutter run -d chrome` from this directory. The development server uses `http://localhost:8386` from `web_dev_config.yaml`, and the client defaults to `http://localhost:8080/api`.
+For Android development, forward the host's backend port so the app can use its default API URL, `http://localhost:8080/api`.
+
+```powershell
+adb devices
+adb -s emulator-5554 reverse tcp:8080 tcp:8080
+flutter run -d emulator-5554
+```
+
+Use the device ID from `adb devices` for a different emulator or an Android phone with USB debugging enabled. Run the reverse command again after rebooting or reconnecting the device.
+
+For Flutter Web, run `flutter run -d edge` or `flutter run -d chrome` from this directory. The development server uses `http://localhost:8386` from `web_dev_config.yaml`.
 
 ### Android Emulator installation
 
@@ -20,6 +30,6 @@ If the APK builds but ADB reports `Failure calling service package: Broken pipe`
 adb -s emulator-5554 install -r --no-streaming build/app/outputs/flutter-apk/app-debug.apk
 ```
 
-`-r` keeps the app's existing data. If running a debug build with the default API URL `http://localhost:8080/api`, run `adb -s emulator-5554 reverse tcp:8080 tcp:8080` to reach the backend on the host. For a fresh build, use the emulator API URL above with `--dart-define=API_BASE_URL=http://10.0.2.2:8080/api`.
+`-r` keeps the app's existing data. Set up port forwarding as shown above before syncing the installed debug APK.
 
 See the repository root README for backend setup, platform notes, and API details.

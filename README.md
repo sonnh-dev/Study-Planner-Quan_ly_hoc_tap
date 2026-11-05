@@ -82,13 +82,13 @@ Trong frontend/:
     dart run build_runner build --delete-conflicting-outputs
     flutter run -d windows --dart-define=API_BASE_URL=http://localhost:8080/api
 
-Android Emulator:
+Android Emulator và điện thoại kết nối qua ADB dùng `http://localhost:8080/api`. Khi backend đang chạy trên máy tính, mở máy ảo hoặc kết nối điện thoại có bật USB debugging rồi chạy:
 
-    flutter run -d emulator-5554 --dart-define=API_BASE_URL=http://10.0.2.2:8080/api
+    adb devices
+    adb -s emulator-5554 reverse tcp:8080 tcp:8080
+    flutter run -d emulator-5554
 
-Kiểm tra kết nối bằng cách mở `http://10.0.2.2:8080/actuator/health` trong trình duyệt **của máy ảo**. Trên Windows, mở `http://localhost:8080/actuator/health`. Cả hai địa chỉ trả về `{"status":"UP"}` khi backend sẵn sàng. Flutter tự nối `/auth/register` vào `API_BASE_URL` và gửi yêu cầu `POST` với JSON khi bấm **Đăng ký**.
-
-Điện thoại thật cần dùng địa chỉ IP LAN của máy chạy backend.
+Thay `emulator-5554` bằng ID trong `adb devices` khi chạy trên thiết bị khác. Chạy lại `adb reverse` sau khi khởi động lại máy ảo hoặc kết nối lại thiết bị. Kiểm tra bằng cách mở `http://localhost:8080/actuator/health` trên Android. Khi kết nối thành công, backend trả `{"status":"UP"}`.
 
 Flutter Web trên máy Windows chạy backend:
 
@@ -96,7 +96,7 @@ Flutter Web trên máy Windows chạy backend:
 
 Có thể dùng `-d chrome` nếu chạy bằng Chrome. File `frontend/web_dev_config.yaml` đặt Web tại `http://localhost:8386`. API mặc định là `http://localhost:8080/api`. Dừng lệnh `flutter run` cũ rồi chạy lại từ `frontend/` để áp dụng cấu hình. Trong DevTools, yêu cầu đăng ký có **Request URL** là `http://localhost:8080/api/auth/register`.
 
-Khi chạy Web từ IntelliJ IDEA hoặc Android Studio, để trống `API_BASE_URL` trong **Additional run args** để dùng URL mặc định. Chỉ truyền URL `http://10.0.2.2:8080/api` khi chọn Android Emulator.
+Khi chạy Web hoặc Android từ IntelliJ IDEA hay Android Studio, để trống `API_BASE_URL` trong **Additional run args** để dùng URL mặc định. Với Android, thiết lập `adb reverse` trước khi dùng chức năng đồng bộ.
 
 Nếu backend đang dùng `APP_CORS_ORIGINS` từ cấu hình riêng, thêm `http://localhost:8386` vào danh sách origin rồi khởi động lại backend. Dữ liệu offline của Web được lưu theo địa chỉ và cổng. Nếu có dữ liệu cần chuyển từ cổng cũ, đồng bộ ở cổng cũ rồi đồng bộ lại ở cổng `8386`.
 
@@ -107,7 +107,7 @@ Drift cần sinh file app_database.g.dart bằng lệnh build_runner ở trên. 
 - Đăng ký bằng email và mật khẩu tối thiểu 8 ký tự.
 - Backend chỉ trả dữ liệu thuộc tài khoản có JWT hợp lệ.
 - JWT secret và thông tin PostgreSQL có thể đặt qua environment variables; không dùng secret mặc định khi chia sẻ môi trường.
-- Offline mode không có đồng bộ; đăng nhập rồi bấm nút đồng bộ để chia sẻ dữ liệu giữa thiết bị.
+- Khi đăng nhập và mở ứng dụng, lịch học tự đồng bộ mỗi phút. Nút **Đồng bộ dữ liệu** gửi và tải tất cả dữ liệu theo yêu cầu.
 
 ## Tài liệu
 

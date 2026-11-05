@@ -10,6 +10,8 @@ import java.util.UUID;
 @Entity
 @Table(name = "roadmap_nodes")
 public class RoadmapNodeEntity extends OwnedEntity {
+    @Column(name = "is_deleted", nullable = false)
+    private boolean deleted;
     @Column(name = "subject_id", nullable = false)
     private UUID subjectId;
     @Column(name = "parent_id")
@@ -34,6 +36,9 @@ public class RoadmapNodeEntity extends OwnedEntity {
     }
     public UUID getSubjectId() { return subjectId; }
     public UUID getParentId() { return parentId; }
+    public boolean isDeleted() { return deleted; }
+    public void markDeleted() { deleted = true; }
+    public void detach() { parentId = null; }
     public String getTitle() { return title; }
     public String getNote() { return note; }
     public String getStatus() { return status; }

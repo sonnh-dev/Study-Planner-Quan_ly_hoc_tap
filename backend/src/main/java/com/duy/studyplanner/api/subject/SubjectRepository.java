@@ -10,7 +10,13 @@ import org.springframework.data.jpa.repository.Query;
 
 public interface SubjectRepository extends JpaRepository<SubjectEntity, UUID> {
     List<SubjectEntity> findAllByUserIdOrderByName(UUID userId);
-    Optional<SubjectEntity> findByIdAndUserId(UUID id, UUID userId);
+    List<SubjectEntity> findAllByUserIdAndDeletedFalseOrderByName(UUID userId);
+    Optional<SubjectEntity> findByIdAndUserIdAndDeletedFalse(UUID id, UUID userId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select subject from SubjectEntity subject where subject.id = ?1")
+    Optional<SubjectEntity> lockById(UUID id);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select subject from SubjectEntity subject where subject.id = ?1 and subject.userId = ?2")
     Optional<SubjectEntity> lockByIdAndUserId(UUID id, UUID userId);

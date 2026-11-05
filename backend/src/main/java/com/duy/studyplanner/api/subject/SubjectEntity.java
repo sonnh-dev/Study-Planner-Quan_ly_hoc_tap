@@ -13,6 +13,8 @@ public class SubjectEntity extends OwnedEntity {
     private String name;
     @Column(nullable = false, length = 20)
     private String color;
+    @Column(name = "is_deleted", nullable = false)
+    private boolean deleted;
     protected SubjectEntity() {}
     public SubjectEntity(UUID id, UUID userId, String name, String color) {
         super(id, userId);
@@ -21,5 +23,7 @@ public class SubjectEntity extends OwnedEntity {
     }
     public String getName() { return name; }
     public String getColor() { return color; }
+    public boolean isDeleted() { return deleted; }
+    public void markDeleted() { deleted = true; }
     public void update(String name, String color) { this.name = name; this.color = color; }
 }

@@ -1,12 +1,12 @@
 # Study Planner — Thiết kế cơ sở dữ liệu và mapping giao diện
 
-Flutter đọc và ghi dữ liệu học tập qua Drift/SQLite. Spring Boot cung cấp API đăng nhập và đồng bộ với PostgreSQL theo tài khoản. Khi người dùng bấm **Đồng bộ dữ liệu**, Flutter gửi các thay đổi cục bộ và cập nhật SQLite từ dữ liệu server.
+Flutter đọc và ghi dữ liệu học tập qua Drift/SQLite. Spring Boot cung cấp API đăng nhập và đồng bộ với PostgreSQL theo tài khoản. Khi ứng dụng đang mở trong phiên đăng nhập, Flutter tự gửi và tải thay đổi lịch học mỗi phút. Nút **Đồng bộ dữ liệu** chạy đồng bộ toàn bộ dữ liệu theo yêu cầu.
 
 ## 1. Thiết kế cơ sở dữ liệu
 
 Flutter đọc và ghi SQLite để giao diện hoạt động offline. Android và Windows lưu trên thiết bị. Web dùng SQLite WASM trong vùng lưu trữ của trình duyệt. Spring Boot quản lý tài khoản và dữ liệu đồng bộ trên PostgreSQL. Hai bên dùng cùng UUID để nhận diện một bản ghi học tập. [Schema Drift](../frontend/lib/data/app_database.dart) · [Migration PostgreSQL V1](../backend/src/main/resources/db/migration/V1__create_study_planner_tables.sql) · [Migration PostgreSQL V2](../backend/src/main/resources/db/migration/V2__mindmap_deletion.sql) · [Migration PostgreSQL V3](../backend/src/main/resources/db/migration/V3__study_event_deletion.sql)
 
-**Phạm vi** gồm 6 bảng SQLite với 31 cột và 5 bảng nghiệp vụ PostgreSQL với 42 cột. Drift nâng lên schema v3 khi mở cơ sở dữ liệu. Flyway áp dụng migration V3 khi backend khởi động và ghi lịch sử vào `flyway_schema_history`.
+**Phạm vi** gồm 8 bảng SQLite với 34 cột và 5 bảng nghiệp vụ PostgreSQL với 44 cột. Drift nâng lên schema v4 khi mở cơ sở dữ liệu. Flyway áp dụng migration V4 khi backend khởi động và ghi lịch sử vào `flyway_schema_history`. [Migration PostgreSQL V4](../backend/src/main/resources/db/migration/V4__roadmap_and_subject_deletion.sql)
 
 ### Quan hệ
 
@@ -48,6 +48,7 @@ Các cột có ràng buộc `NOT NULL` trừ khi ô kiểu dữ liệu ghi `NULL
 | `created_at` | — | `TIMESTAMPTZ DEFAULT now()` | Thời điểm tạo trên server. |
 | `updated_at` | — | `TIMESTAMPTZ DEFAULT now()` | Lần cập nhật gần nhất, API trả về `updatedAt`. |
 | `is_synced` | `INTEGER DEFAULT 0` | — | Cờ đồng bộ cục bộ. |
+| `is_deleted` | — | `BOOLEAN DEFAULT FALSE` | Đánh dấu môn đã xóa. API Lộ trình và Mindmap chỉ truy cập được môn còn hoạt động. |
 
 Chỉ mục PostgreSQL `idx_subjects_user_updated (user_id, updated_at)`.
 
@@ -89,12 +90,17 @@ Flutter ghi ID vào hàng đợi và xóa lịch khỏi `study_events` trong cù
 | `note` | `TEXT DEFAULT ''` | `TEXT DEFAULT ''` | Ghi chú học tập. |
 | `status` | `TEXT DEFAULT 'planned'` | `VARCHAR(20) DEFAULT 'planned'` | Trạng thái `planned`, `in_progress` hoặc `done`. |
 | `sort_order` | `INTEGER DEFAULT 0` | `INTEGER DEFAULT 0` | Thứ tự hiển thị nhánh. |
-| `due_at` | `INTEGER NULL` | `TIMESTAMPTZ NULL` | Hạn học nếu được đặt. Giao diện tạo nhánh với `NULL`. |
+| `due_at` | `INTEGER NULL` | `TIMESTAMPTZ NULL` | Hạn học có thể đặt hoặc bỏ trong form nhánh. |
 | `created_at` | — | `TIMESTAMPTZ DEFAULT now()` | Thời điểm tạo trên server. |
 | `updated_at` | — | `TIMESTAMPTZ DEFAULT now()` | Lần cập nhật gần nhất trên server. |
 | `is_synced` | `INTEGER DEFAULT 0` | — | Cờ đồng bộ cục bộ. |
+| `is_deleted` | — | `BOOLEAN DEFAULT FALSE` | Đánh dấu nhánh đã xóa. Các con trực tiếp trở thành nhánh gốc. |
 
-PostgreSQL kiểm tra trạng thái qua `ck_roadmap_status`. Chỉ mục `idx_roadmap_subject_order (subject_id, parent_id, sort_order)`.
+PostgreSQL kiểm tra trạng thái qua `ck_roadmap_status`. Chỉ mục `idx_roadmap_subject_order (subject_id, parent_id, sort_order)`. API duyệt tổ tiên của nhánh cha để ngăn vòng lặp.
+
+#### `subject_deletions` và `roadmap_deletions`
+
+`subject_deletions` lưu UUID môn dưới cột `id TEXT PK`. `roadmap_deletions` lưu UUID nhánh dưới `id TEXT PK` và UUID môn dưới `subject_id TEXT`. Cả hai bảng chỉ có trên SQLite và giữ các yêu cầu xóa cho đến khi server xác nhận. Xóa môn cục bộ dọn cả cây lộ trình, Mindmap và các yêu cầu xóa nhánh của môn.
 
 #### `mindmap_nodes` — Thẻ bản đồ tư duy
 
@@ -145,10 +151,10 @@ Flutter gọi `http://localhost:8080/api` theo mặc định. Xem [đặc tả R
 | **Tổng quan** | `study_events.title`, `starts_at`, `ends_at` và số dòng `subjects`. | **Lịch sắp tới** đếm lịch có `ends_at >= thời điểm hiện tại`. **Lịch gần nhất** hiện tối đa 4 lịch trong nhóm này, theo giờ bắt đầu. Số môn đọc từ Drift. |
 | **Lịch học** | **Tên lịch** → `title`. **Ghi chú** → `details`. **Bắt đầu/Kết thúc** → `starts_at/ends_at` ↔ `startsAt/endsAt`. **Nhắc giờ học** → `reminder_at` ↔ `reminderAt`. | Bảng hiển thị các buổi giao với ngày đang chọn theo giờ thiết bị. Thêm hoặc sửa ghi vào SQLite rồi gửi bằng `PUT /api/events/{id}` khi đồng bộ. Xóa bỏ dòng khỏi bảng và đưa ID vào hàng đợi gửi `DELETE`. |
 | **Lộ trình → Môn học** | **Tên môn học** → `subjects.name`. `id` định danh môn và `color` được gán `#5685F7` khi tạo từ giao diện. | Lưu local rồi mở cây của môn vừa tạo. Danh sách môn sắp theo tên. Đồng bộ qua `PUT /api/subjects/{id}` và `GET /api/subjects`. |
-| **Lộ trình → Chi tiết môn** | Môn đang mở → `subject_id` ↔ `subjectId`. **Tên chủ đề** → `title`. **Nhánh cha** → `parent_id` ↔ `parentId`. **Ghi chú** → `note`. **Trạng thái** → `status`. | Nhánh mới có `planned` và `due_at = NULL`. Giao diện dùng `sort_order` để sắp xếp, nhóm theo cha. Mở nhánh để sửa ghi chú và trạng thái. Tiến độ bằng số nhánh `done` chia tổng số nhánh. Đồng bộ qua API roadmap. |
+| **Lộ trình → Chi tiết môn** | Môn đang mở → `subject_id` ↔ `subjectId`. **Tên chủ đề** → `title`. **Nhánh cha** → `parent_id` ↔ `parentId`. **Ghi chú** → `note`. **Trạng thái** → `status`. **Hạn học** → `due_at` ↔ `dueAt`. | Thêm hoặc sửa các trường trong cùng form. Mỗi nhánh có menu sửa, thêm con và xóa. Giao diện nhóm theo cha và dùng `sort_order` để sắp xếp. Tiến độ bằng số nhánh `done` chia tổng số nhánh. |
 | **Mindmap trên Windows và Web rộng** | Môn → `subject_id`. Ý chính hoặc nhánh con → `parent_id`. **Tiêu đề** → `title`. **Nội dung ghi chú** → `content`. Vị trí thẻ → `x`, `y`. | Bấm thẻ để chọn. **Thêm ý chính**, **Thêm nhánh**, **Chi tiết / Sửa**, **Nối vào…**, **Gỡ kết nối** và **Xóa thẻ** là các thao tác riêng. Kéo thẻ để lưu vị trí. `parent_id` xác định đường nối. Đồng bộ qua các API mindmap. |
 | **Mindmap trên điện thoại hoặc Web hẹp** | `subject_id`, `title`, `content`, tiêu đề node cha tra qua `parent_id`. | Danh sách chỉ xem theo môn. **Chỉnh sửa trên máy tính** hướng dẫn mở Web editor và đồng bộ giữa hai thiết bị. |
-| **Tập trung** | Thời lượng 25, 45 hoặc 60 phút, số giây còn lại và trạng thái chạy nằm trong bộ nhớ màn hình. | Bắt đầu, tạm dừng hoặc đặt lại bằng bộ đếm Flutter. Thông báo kết thúc được đặt cục bộ trên nền tảng hỗ trợ. Chức năng này chạy độc lập với Drift và API. |
+| **Tập trung** | Mốc 10, 15, 20, 30 phút hoặc 1 giờ, cùng thời lượng tùy chỉnh bằng các bánh cuộn giờ, phút, giây. Số giây còn lại và trạng thái chạy nằm trong bộ nhớ màn hình. | Chạm đồng hồ để đặt thời lượng. Có thể bắt đầu, tạm dừng, tiếp tục hoặc đặt lại. Thông báo kết thúc được đặt cục bộ trên nền tảng hỗ trợ. |
 
 Trạng thái lộ trình hiển thị thành **Chưa bắt đầu** (`planned`), **Đang học** (`in_progress`) và **Hoàn thành** (`done`). Trình chỉnh sửa mindmap mở trên Windows hoặc Web có vùng hiển thị từ 760 px. Lịch học có nhắc được đặt qua hệ thống thông báo trên Android và Windows khi mốc nhắc còn ở tương lai. Trên Web, biểu tượng chuông cho biết lịch có bật nhắc.
 
